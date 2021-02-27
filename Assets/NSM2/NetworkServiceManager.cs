@@ -318,13 +318,13 @@ namespace NSM2
                         nsm.UpdateSession(channel, sid);
                         nsm.BroadcastEventToListeners(NetworkEventType.CONNECT_SUCCESS, 0, channel);
                         nsm._packeter.HandleEvent(NetworkEvent.CONNECT_SUCCESS, -1, NativeDataView.NullValue, channel);
-                        Debug.LogFormat("[channel:#{0}] The connect server succeed, ec={1}!", channel, status);
+                        Debug.LogFormat("[channel:#{0}] Connect succeed, ec={1}!", channel, status);
                     }
                     else
                     {
                         nsm.BroadcastEventToListeners(NetworkEventType.CONNECT_FAILED, status, channel);
                         nsm._packeter.HandleEvent(NetworkEvent.CONNECT_FAILED, -1, NativeDataView.NullValue, channel);
-                        Debug.LogWarningFormat("[channel:#{0}] The connect server failed, ec={1}!", channel, status);
+                        Debug.LogWarningFormat("[channel:#{0}] Connect failed, ec={1}!", channel, status);
                     }
                     break;
                 case YASIO_NI.YEnums.YEK_CONNECTION_LOST:
