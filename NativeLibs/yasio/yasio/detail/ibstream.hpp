@@ -260,6 +260,7 @@ public:
   {
     this->reset(blob_.data(), static_cast<int>(blob_.size()));
   }
+
   bool load(const char* filename)
   {
     std::ifstream fin;
