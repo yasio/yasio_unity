@@ -19,10 +19,10 @@ namespace NSM2
     public interface INetworkPacketHandler
     {
         /// <summary>
-        /// 获取拆包参数, 分号分割: $"{channelIndex};{maxFrameLength};{lenghtFieldOffset};{lengthFieldLength};{lengthAdjustment}";
+        /// 获取拆包参数
         /// </summary>
         /// <param name="channel"></param>
-        /// <returns></returns>
+        /// <returns>分号分割的字符串参数，示例: $"{channelIndex};{maxFrameLength};{lenghtFieldOffset};{lengthFieldLength};{lengthAdjustment}"</returns>
         string GetOptions(int channel);
 
         /// <summary>
