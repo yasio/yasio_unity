@@ -18,8 +18,11 @@ namespace NSM2
 {
     public interface INetworkPacketHandler
     {
-        // Gets the yasio intializing option
-        // http://gitea.c4games.com:8000/LoveEngineDocs/Network-Service/
+        /// <summary>
+        /// 获取拆包参数
+        /// </summary>
+        /// <param name="channel"></param>
+        /// <returns>分号分割的字符串参数，示例: $"{channelIndex};{maxFrameLength};{lenghtFieldOffset};{lengthFieldLength};{lengthAdjustment}"</returns>
         string GetOptions(int channel);
 
         /// <summary>
