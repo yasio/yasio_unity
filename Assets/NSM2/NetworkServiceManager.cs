@@ -12,7 +12,6 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using System.Security.Cryptography;
 using AOT;
 using ByteDance.NAPI;
 using System.IO;
