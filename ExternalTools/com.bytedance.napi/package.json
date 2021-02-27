@@ -1,0 +1,10 @@
+{
+  "name": "com.bytedance.napi",
+  "displayName": "ByteDance NAPI",
+  "version": "1.0.0",
+  "unity": "2019.2",
+  "keywords": ["ByteDance", "NAPI"],
+  "description": "ByteDance Native API for interop.",
+  "dependencies": {
+   }
+}
