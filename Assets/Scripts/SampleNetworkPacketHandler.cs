@@ -20,7 +20,7 @@ namespace NSM2
     public class SampleNetworkPacketHandler : INetworkPacketHandler
     {
         /*
-         * 自定义二进制协议定义(这里是实例，实际使用自行定义):
+         * 自定义二进制协议定义(这里只为简单演示，实际使用请自行定义):
          * - 协议头
          *   - cmd(消息号) ---------------------------------------> short(2bytes)
          *   - dataLen(消息数据大小, 不包含协议头本身) ---------------> int(4bytes)
