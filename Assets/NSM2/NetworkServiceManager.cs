@@ -72,7 +72,7 @@ namespace NSM2
 
             YASIO_NI.yasio_init_globals(HandleNativeConsolePrint);
 
-            _service = YASIO_NI.yasio_create_service(_maxChannels, HandleNativeNetworkIoEvent);
+            _service = YASIO_NI.yasio_create_service(_maxChannels, HandleNativeNetworkEvent);
 
             YASIO_NI.yasio_set_print_fn(_service, HandleNativeConsolePrint);
 
@@ -301,7 +301,7 @@ namespace NSM2
         /// <param name="bytes"></param>
         /// <param name="len"></param>
         [MonoPInvokeCallback(typeof(YASIO_NI.YNIEventDelegate))]
-        static void HandleNativeNetworkIoEvent(int kind, int status, int channel, IntPtr sid, IntPtr bytes, int len)
+        static void HandleNativeNetworkEvent(int kind, int status, int channel, IntPtr sid, IntPtr bytes, int len)
         {
             var nsm = NetworkServiceManager.Instance;
             switch ((YASIO_NI.YEnums)kind)
