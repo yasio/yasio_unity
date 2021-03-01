@@ -21,7 +21,6 @@ namespace NSM2
 #else
         public const string LIBNAME = "yasio";
 #endif
-        public const bool LogNetHex = false;
 
         public delegate void YNIEventDelegate(int kind, int status, int cidx, IntPtr t, IntPtr bytes, int len);
         public delegate int YNIResolvDelegate(string host, IntPtr sbuf);
