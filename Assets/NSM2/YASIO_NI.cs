@@ -135,38 +135,45 @@ namespace NSM2
             #endregion
 
             #region All supported options by native, copy from yasio.hpp
-            // Set with deferred dispatch event, default is: 1
+            // Set whether deferred dispatch event.
             // params: deferred_event:int(1)
             YOPT_S_DEFERRED_EVENT = 1,
 
-            // Set custom resolve function, native C++ ONLY
+            // Set custom resolve function, native C++ ONLY.
             // params: func:resolv_fn_t*
+            // remarks: you must ensure thread safe of it.
             YOPT_S_RESOLV_FN,
 
-            // Set custom print function, native C++ ONLY, you must ensure thread safe of it.
-            // remark:
+            // Set custom print function, native C++ ONLY.
             // parmas: func:print_fn_t
+            // remarks: you must ensure thread safe of it.
             YOPT_S_PRINT_FN,
 
-            // Set custom print function, native C++ ONLY, you must ensure thread safe of it.
-            // remark:
+            // Set custom print function, native C++ ONLY.
             // parmas: func:print_fn2_t
+            // remarks: you must ensure thread safe of it.
             YOPT_S_PRINT_FN2,
 
-            // Set custom print function
+            // Set event callback
             // params: func:event_cb_t*
+            // remarks: this callback will be invoke at io_service::dispatch caller thread
             YOPT_S_EVENT_CB,
+
+            // Sets callback before defer dispatch event.
+            // params: func:defer_event_cb_t*
+            // remarks: this callback invoke at io_service thread
+            YOPT_S_DEFER_EVENT_CB,
 
             // Set tcp keepalive in seconds, probes is tries.
             // params: idle:int(7200), interal:int(75), probes:int(10)
             YOPT_S_TCP_KEEPALIVE,
 
             // Don't start a new thread to run event loop
-            // value:int(0)
+            // params: value:int(0)
             YOPT_S_NO_NEW_THREAD,
 
             // Sets ssl verification cert, if empty, don't verify
-            // value:const char*
+            // params: path:const char*
             YOPT_S_SSL_CACERT,
 
             // Set connect timeout in seconds
@@ -177,9 +184,9 @@ namespace NSM2
             // params: dns_cache_timeout : int(600),
             YOPT_S_DNS_CACHE_TIMEOUT,
 
-            // Set dns queries timeout in seconds, default is: 5
-            // params: dns_queries_timeout : int(5)
-            // remark:
+            // Set dns queries timeout in milliseconds, default is: 5000
+            // params: dns_queries_timeout : int(5000)
+            // remarks:
             //         a. this option must be set before 'io_service::start'
             //         b. only works when have c-ares
             //         c. since v3.33.0 it's milliseconds, previous is seconds.
@@ -189,27 +196,22 @@ namespace NSM2
             //         https://c-ares.haxx.se/ares_init_options.html
             YOPT_S_DNS_QUERIES_TIMEOUT,
 
-            // Set dns queries timeout in milliseconds, default is: 5000
-            // remark: same with YOPT_S_DNS_QUERIES_TIMEOUT, but in mmilliseconds
+            // [DEPRECATED], same with YOPT_S_DNS_QUERIES_TIMEOUT
             YOPT_S_DNS_QUERIES_TIMEOUTMS,
 
             // Set dns queries tries when timeout reached, default is: 5
             // params: dns_queries_tries : int(5)
-            // remark:
+            // remarks:
             //        a. this option must be set before 'io_service::start'
             //        b. relative option: YOPT_S_DNS_QUERIES_TIMEOUT
             YOPT_S_DNS_QUERIES_TRIES,
 
             // Set dns server dirty
             // params: reserved : int(1)
-            // remark:
+            // remarks:
             //        a. this option only works with c-ares enabled
             //        b. you should set this option after your mobile network changed
             YOPT_S_DNS_DIRTY,
-
-            // Set whether ignore udp error, by default is 1: don't trigger handle_close,
-            // params: ignored : int(1)
-            YOPT_S_IGNORE_UDP_ERROR,
 
             // Sets channel length field based frame decode function, native C++ ONLY
             // params: index:int, func:decode_len_fn_t*
@@ -222,13 +224,15 @@ namespace NSM2
             //     length_field_offset:int(-1),
             //     length_field_length:int(4),
             //     length_adjustment:int(0),
-            YOPT_C_LFBFD_PARAMS,
+            YOPT_C_UNPACK_PARAMS,
+            YOPT_C_LFBFD_PARAMS = YOPT_C_UNPACK_PARAMS,
 
-            // Sets channel length field based frame decode initial bytes to strip, default is 0
+            // Sets channel length field based frame decode initial bytes to strip
             // params:
             //     index:int,
             //     initial_bytes_to_strip:int(0)
-            YOPT_C_LFBFD_IBTS,
+            YOPT_C_UNPACK_STRIP,
+            YOPT_C_LFBFD_IBTS = YOPT_C_UNPACK_STRIP,
 
             // Sets channel remote host
             // params: index:int, ip:const char*
@@ -254,7 +258,7 @@ namespace NSM2
             // params: index:int, ip:const char*, port:int
             YOPT_C_LOCAL_ENDPOINT,
 
-            // Sets channl flags
+            // Mods channl flags
             // params: index:int, flagsToAdd:int, flagsToRemove:int
             YOPT_C_MOD_FLAGS,
 
@@ -272,12 +276,12 @@ namespace NSM2
 
             // Change 4-tuple association for io_transport_udp
             // params: transport:transport_handle_t
-            // remark: only works for udp client transport
+            // remarks: only works for udp client transport
             YOPT_T_CONNECT,
 
             // Dissolve 4-tuple association for io_transport_udp
             // params: transport:transport_handle_t
-            // remark: only works for udp client transport
+            // remarks: only works for udp client transport
             YOPT_T_DISCONNECT,
 
             // Sets io_base sockopt
