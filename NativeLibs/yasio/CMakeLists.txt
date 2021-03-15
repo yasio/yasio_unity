@@ -318,9 +318,10 @@ if(YASIO_SSL_BACKEND)
    target_compile_definitions(yasio PUBLIC YASIO_SSL_BACKEND=${YASIO_SSL_BACKEND})
 endif()
 
-if (ANDROID AND ANDROID_STRIP_TOOL)
+if (ANDROID AND BUILD_SHARED_LIBS)
+    message("CMAKE_STRIP=${CMAKE_STRIP}")
     add_custom_command(TARGET yasio POST_BUILD
-        COMMAND ${ANDROID_STRIP_TOOL} ${PROJECT_BINARY_DIR}/libyasio.so -o ${PROJECT_BINARY_DIR}/libyasio.so
+        COMMAND mkdir -p ${PROJECT_BINARY_DIR}/stripped && ${CMAKE_STRIP} ${PROJECT_BINARY_DIR}/libyasio.so -o ${PROJECT_BINARY_DIR}/stripped/libyasio.so
     )
 endif()
 
