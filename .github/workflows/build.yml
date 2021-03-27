@@ -30,7 +30,19 @@ jobs:
         with:
           path: ./NativeLibs/yasio/plugin_android/**/*
           name: plugin_android
-      
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: |
+          cd NativeLibs/yasio
+          ./build_linux.sh
+      - name: Upload
+        uses: actions/upload-artifact@v2
+        with:
+          path: ./NativeLibs/yasio/plugin_linux/**/*
+          name: plugin_linux
   ios:
     runs-on: macos-latest
 
