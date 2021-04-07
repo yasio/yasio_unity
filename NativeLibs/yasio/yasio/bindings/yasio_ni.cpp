@@ -40,12 +40,6 @@ SOFTWARE.
 #  define YASIO_NI_API
 #endif
 
-#if !defined(_WIN32) || YASIO__64BITS
-#  define YASIO_INTEROP_DECL
-#else
-#  define YASIO_INTEROP_DECL __stdcall
-#endif
-
 #define YASIO_MAX_OPTION_ARGC 5
 
 using namespace yasio;
@@ -235,6 +229,28 @@ YASIO_NI_API void yasio_dispatch(intptr_t service_ptr, int count)
   auto service = reinterpret_cast<io_service*>(service_ptr);
   if (service)
     service->dispatch(count);
+}
+YASIO_NI_API long long yasio_bytes_transferred(intptr_t service_ptr, int cindex)
+{
+  auto service = reinterpret_cast<io_service*>(service_ptr);
+  if (service)
+  {
+    auto channel = service->channel_at(cindex);
+    if (channel)
+      return channel->bytes_transferred();
+  }
+  return 0;
+}
+YASIO_NI_API unsigned int yasio_connect_id(intptr_t service_ptr, int cindex)
+{
+  auto service = reinterpret_cast<io_service*>(service_ptr);
+  if (service)
+  {
+    auto channel = service->channel_at(cindex);
+    if (channel)
+      return channel->connect_id();
+  }
+  return 0;
 }
 YASIO_NI_API void yasio_set_print_fn(intptr_t service_ptr, void(YASIO_INTEROP_DECL* pfn)(int, const char*))
 {

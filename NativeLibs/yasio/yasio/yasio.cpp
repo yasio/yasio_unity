@@ -187,10 +187,8 @@ struct yasio__global_state {
 #  endif
 #endif
     // print version & transport alloc size
-    YASIO_KLOGI("[global] the yasio-%x.%x.%x is initialized, the size of per transport is %d "
-                "when object_pool "
-                "enabled.",
-                (YASIO_VERSION_NUM >> 16) & 0xff, (YASIO_VERSION_NUM >> 8) & 0xff, YASIO_VERSION_NUM & 0xff, yasio__max_tsize);
+    YASIO_KLOGI("[global] the yasio-%x.%x.%x is initialized, the size of per transport is %d when object_pool enabled.", (YASIO_VERSION_NUM >> 16) & 0xff,
+                (YASIO_VERSION_NUM >> 8) & 0xff, YASIO_VERSION_NUM & 0xff, yasio__max_tsize);
   }
   ~yasio__global_state()
   {
@@ -447,7 +445,10 @@ int io_transport::call_read(void* data, int size, int& error)
 {
   int n = read_cb_(data, size);
   if (n > 0)
+  {
+    ctx_->bytes_transferred_ += n;
     return n;
+  }
   if (n < 0)
   {
     error = xxsocket::get_last_errno();
@@ -1049,6 +1050,8 @@ void io_service::process_channels(fd_set* fds_array)
         finish = (ctx->state_ != io_base::state::OPEN);
         if (!finish)
           do_nonblocking_accept_completion(ctx, fds_array);
+        else
+          ctx->bytes_transferred_ = 0;
       }
 
       if (finish)
@@ -1726,7 +1729,9 @@ void io_service::handle_connect_succeed(transport_handle_t transport)
   auto& connection = transport->socket_;
   if (yasio__testbits(ctx->properties_, YCM_CLIENT))
   {
-    ctx->state_ = io_base::state::OPEN;
+    // Reset client channel bytes transferred when a new connection established
+    ctx->bytes_transferred_ = 0;
+    ctx->state_             = io_base::state::OPEN;
     if (yasio__testbits(ctx->properties_, YCM_UDP))
       static_cast<io_transport_udp*>(transport)->confgure_remote(ctx->remote_eps_[0]);
   }
@@ -1937,6 +1942,8 @@ void io_service::open_internal(io_channel* ctx)
 
   yasio__clearbits(ctx->opmask_, YOPM_CLOSE);
   yasio__setbits(ctx->opmask_, YOPM_OPEN);
+
+  ++ctx->connect_id_;
 
   this->channel_ops_mtx_.lock();
   if (yasio__find(this->channel_ops_, ctx) == this->channel_ops_.end())

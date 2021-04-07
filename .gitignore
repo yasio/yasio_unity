@@ -4,6 +4,8 @@
 # Get latest from https://github.com/github/gitignore/blob/master/Unity.gitignore
 #
 
+.DS_Store
+
 build_*
 
 /[Ll]ibrary/
