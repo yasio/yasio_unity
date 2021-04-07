@@ -68,6 +68,12 @@ namespace NSM2
         public static extern void yasio_dispatch(IntPtr service, int count);
 
         [DllImport(LIBNAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern long yasio_bytes_transferred(IntPtr service, int cindex);
+
+        [DllImport(LIBNAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint yasio_connect_id(IntPtr service, int cindex);
+
+        [DllImport(LIBNAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void yasio_set_option(IntPtr service, int opt, string strParam);
 
         [DllImport(LIBNAME, CallingConvention = CallingConvention.Cdecl)]

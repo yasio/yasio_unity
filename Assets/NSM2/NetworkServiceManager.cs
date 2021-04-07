@@ -148,6 +148,9 @@ namespace NSM2
         {
             string strParam = string.Format("{0};{1};{2}", channel, address, port);
             YASIO_NI.yasio_set_option(_service, (int)YASIO_NI.YEnums.YOPT_C_REMOTE_ENDPOINT, strParam);
+
+            var reuseaddr = (int)YASIO_NI.YEnums.YCF_REUSEADDR;
+            YASIO_NI.yasio_set_option(_service, (int)YASIO_NI.YEnums.YOPT_C_MOD_FLAGS, $"{channel};{reuseaddr};0");
             ListenAt(channel);
         }
 
@@ -304,6 +307,8 @@ namespace NSM2
         static void HandleNativeNetworkEvent(int kind, int status, int channel, IntPtr sid, IntPtr bytes, int len)
         {
             var nsm = NetworkServiceManager.Instance;
+            Debug.LogFormat("The channel connect_id={0}, bytes_transferred={1}", YASIO_NI.yasio_connect_id(nsm._service, channel),
+                YASIO_NI.yasio_bytes_transferred(nsm._service, channel));
             switch ((YASIO_NI.YEnums)kind)
             {
                 case YASIO_NI.YEnums.YEK_PACKET:
