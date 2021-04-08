@@ -2,7 +2,7 @@
 
 ## Repo Introduction
 - NSM(NetworkServiceManager)
-- Depends on next release of yasio v3.37.1
+- Depends on next release(v3.37.1) of yasio
 - Plugins buld with vs2019, if can't load, please install the redist: https://dl.x-studio.net/#vs2019-redists
 - If you wan't `non-stripped` android so, please download via https://github.com/yasio/OpenNSM2/actions 
   - `Plugins/Android/normal` are `non-stripped` so
