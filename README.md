@@ -10,7 +10,7 @@
 
 ## Class name
 - YASIO_NI: yasio dllimport interfaces and enums
-- NetworkServiceManager: manage network connection, message send, recv and ohters.
+- NetworkServiceManager: manage network connection, message send, recv and others.
 - INetworkPacketHandler: protocol abstract, could implemented with protobuf, flatbuffers and etc.
 - SampleNetworkPacketHandler: The simplest binary protocol implementation.
 
