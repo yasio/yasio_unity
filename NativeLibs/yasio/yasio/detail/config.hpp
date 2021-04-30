@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////////////////////////////////////////
-// A multi-platform support c++11 library with focus on asynchronous socket I/O for any 
+// A multi-platform support c++11 library with focus on asynchronous socket I/O for any
 // client application.
 //////////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -47,6 +47,11 @@ SOFTWARE.
 **         you may need uncomment it.
 */
 // #define YASIO_USE_SPSC_QUEUE 1
+
+/*
+** Uncomment or add compiler flag -DYASIO_USE_SHARED_PACKET to use std::shared_ptr wrap network packet.
+*/
+// #define YASIO_USE_SHARED_PACKET 1
 
 /*
 ** Uncomment or add compiler flag -DYASIO_DISABLE_OBJECT_POOL to disable object_pool for allocating
@@ -130,21 +135,35 @@ SOFTWARE.
 #  define YASIO_INTEROP_DECL __stdcall
 #endif
 
+#if !defined(YASIO_API)
+#  if defined(_WINDLL)
+#    if defined(YASIO_SHARED_LIB)
+#      define YASIO_API __declspec(dllexport)
+#    else
+#      define YASIO_API __declspec(dllimport)
+#    endif
+#  else
+#    define YASIO_API
+#  endif
+#endif
+
 #define YASIO_ARRAYSIZE(A) (sizeof(A) / sizeof((A)[0]))
 
 #define YASIO_SSIZEOF(T) static_cast<int>(sizeof(T))
 
+// clang-format off
 /*
 ** YASIO_OBSOLETE_DEPRECATE
 */
 #if defined(__GNUC__) && ((__GNUC__ >= 4) || ((__GNUC__ == 3) && (__GNUC_MINOR__ >= 1)))
 #  define YASIO_OBSOLETE_DEPRECATE(_Replacement) __attribute__((deprecated))
 #elif _MSC_VER >= 1400 // vs 2005 or higher
-#  define YASIO_OBSOLETE_DEPRECATE(_Replacement)                                                                                                               \
+#  define YASIO_OBSOLETE_DEPRECATE(_Replacement) \
     __declspec(deprecated("This function will be removed in the future. Consider using " #_Replacement " instead."))
 #else
 #  define YASIO_OBSOLETE_DEPRECATE(_Replacement)
 #endif
+// clang-format on
 
 /*
 **  The yasio version macros

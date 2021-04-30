@@ -84,6 +84,8 @@ include_directories(
 
 # --- The yasio optional dependencies
 
+add_definitions(-DYASIO_USE_SHARED_PACKET=1)
+
 if(YASIO_BUILD_WITH_HALF)
     add_definitions(-DYASIO_HAVE_HALF_FLOAT=1)
 endif()
@@ -286,6 +288,10 @@ else()
     endif()
 endif()
 
+if(BUILD_SHARED_LIBS)
+   target_compile_definitions(yasio PRIVATE YASIO_SHARED_LIB=1)
+endif()
+
 # checking build system have openssl
 if(OPENSSL_INCLUDE_DIR)
    set(YASIO_SSL_BACKEND 1)
@@ -300,10 +306,6 @@ if(CARES_INCLUDE_DIR AND YASIO_BUILD_WITH_CARES)
    target_include_directories(yasio PRIVATE "${CARES_INCLUDE_DIR}")
    target_link_libraries(yasio c-ares)
    target_compile_definitions(yasio PUBLIC YASIO_HAVE_CARES=1 YASIO_ENABLE_ARES_PROFILER=1)
-
-   if(ANDROID AND BUILD_SHARED_LIBS)
-       target_compile_definitions(yasio PRIVATE YASIO_BUILD_AS_SHARED=1)
-   endif()
 endif()
 
 # checking build system have kcp

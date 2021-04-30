@@ -340,7 +340,7 @@ struct io_hostent {
   u_short port_ = 0;
 };
 
-class highp_timer {
+class YASIO_API highp_timer {
 public:
   void expires_from_now(const std::chrono::microseconds& duration)
   {
@@ -382,7 +382,7 @@ public:
   std::chrono::time_point<steady_clock_t> expire_time_ = {};
 };
 
-struct io_base {
+struct YASIO_API io_base {
   enum class state : uint8_t
   {
     CLOSED,
@@ -445,7 +445,7 @@ protected:
 };
 #endif
 
-class io_channel : public io_base {
+class YASIO_API io_channel : public io_base {
   friend class io_service;
   friend class io_transport;
   friend class io_transport_tcp;
@@ -566,7 +566,7 @@ private:
 };
 
 // for tcp transport only
-class io_send_op {
+class YASIO_API io_send_op {
 public:
   io_send_op(std::vector<char>&& buffer, completion_cb_t&& handler) : offset_(0), buffer_(std::move(buffer)), handler_(std::move(handler)) {}
   virtual ~io_send_op() {}
@@ -583,7 +583,7 @@ public:
 };
 
 // for udp transport only
-class io_sendto_op : public io_send_op {
+class YASIO_API io_sendto_op : public io_send_op {
 public:
   io_sendto_op(std::vector<char>&& buffer, completion_cb_t&& handler, const ip::endpoint& destination)
       : io_send_op(std::move(buffer), std::move(handler)), destination_(destination)
@@ -680,7 +680,7 @@ private:
 #endif
 };
 
-class io_transport_tcp : public io_transport {
+class YASIO_API io_transport_tcp : public io_transport {
   friend class io_service;
 
 public:
@@ -700,7 +700,7 @@ protected:
 #else
 class io_transport_ssl {};
 #endif
-class io_transport_udp : public io_transport {
+class YASIO_API io_transport_udp : public io_transport {
   friend class io_service;
 
 public:
@@ -756,6 +756,24 @@ protected:
 class io_transport_kcp {};
 #endif
 
+using io_packet = std::vector<char>;
+#if !defined(YASIO_USE_SHARED_PACKET)
+using packet_t = io_packet;
+inline packet_t&& wrap_packet(io_packet& raw_packet) { return (packet_t &&) raw_packet; }
+inline bool is_packet_empty(packet_t& pkt) { return pkt.empty(); }
+inline io_packet& forward_packet(packet_t& pkt) { return pkt; }
+inline io_packet&& forward_packet(packet_t&& pkt) { return std::move(pkt); }
+inline io_packet::pointer packet_data(packet_t& pkt) { return pkt.data(); }
+inline io_packet::size_type packet_len(packet_t& pkt) { return pkt.size(); }
+#else
+using packet_t = std::shared_ptr<io_packet>;
+inline packet_t wrap_packet(io_packet& raw_packet) { return std::make_shared<io_packet>(std::move(raw_packet)); }
+inline bool is_packet_empty(packet_t& pkt) { return !pkt; }
+inline io_packet& forward_packet(packet_t& pkt) { return *pkt; }
+inline io_packet&& forward_packet(packet_t&& pkt) { return std::move(*pkt); }
+inline io_packet::pointer packet_data(packet_t& pkt) { return pkt->data(); }
+inline io_packet::size_type packet_len(packet_t& pkt) { return pkt->size(); }
+#endif
 class io_event final {
 public:
   io_event(int cindex, int kind, int error)
@@ -773,7 +791,7 @@ public:
 #endif
   {}
   io_event(int cindex, int kind, transport_handle_t transport, std::vector<char> packet)
-      : cindex_(cindex), kind_(kind), status_(0), transport_(transport), packet_(std::move(packet))
+      : cindex_(cindex), kind_(kind), status_(0), transport_(transport), packet_(wrap_packet(packet))
 #if !defined(YASIO_MINIFY_EVENT)
         ,
         timestamp_(highp_clock()), transport_udata_(transport->ud_.ptr), transport_id_(transport->id_)
@@ -793,7 +811,7 @@ public:
   int kind() const { return kind_; }
   int status() const { return status_; }
 
-  std::vector<char>& packet() { return packet_; }
+  packet_t& packet() { return packet_; }
   transport_handle_t transport() const { return transport_; }
 
 #if !defined(YASIO_MINIFY_EVENT)
@@ -817,7 +835,7 @@ private:
   int kind_;
   int status_;
   transport_handle_t transport_;
-  std::vector<char> packet_;
+  packet_t packet_;
 #if !defined(YASIO_MINIFY_EVENT)
   highp_time_t timestamp_;
   void* transport_udata_;
@@ -825,7 +843,7 @@ private:
 #endif
 };
 
-class io_service // lgtm [cpp/class-many-fields]
+class YASIO_API io_service // lgtm [cpp/class-many-fields]
 {
   friend class highp_timer;
   friend class io_transport;
