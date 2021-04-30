@@ -72,7 +72,7 @@ namespace NSM2
 
             YASIO_NI.yasio_init_globals(HandleNativeConsolePrint);
 
-            _service = YASIO_NI.yasio_create_service(_maxChannels, HandleNativeNetworkEvent);
+            _service = YASIO_NI.yasio_create_service(_maxChannels, HandleNativeNetworkIoEvent);
 
             YASIO_NI.yasio_set_print_fn(_service, HandleNativeConsolePrint);
 
@@ -301,10 +301,9 @@ namespace NSM2
         /// </summary>
         /// <param name="emask"></param>
         /// <param name="sid"></param>
-        /// <param name="bytes"></param>
-        /// <param name="len"></param>
+        /// <param name="opaque">The stack address of shared_ptr<io_packet></param>
         [MonoPInvokeCallback(typeof(YASIO_NI.YNIEventDelegate))]
-        static void HandleNativeNetworkEvent(int kind, int status, int channel, IntPtr sid, IntPtr bytes, int len)
+        static void HandleNativeNetworkIoEvent(int kind, int status, int channel, IntPtr sid, IntPtr opaque)
         {
             var nsm = NetworkServiceManager.Instance;
             Debug.LogFormat("The channel connect_id={0}, bytes_transferred={1}", YASIO_NI.yasio_connect_id(nsm._service, channel),
@@ -312,7 +311,7 @@ namespace NSM2
             switch ((YASIO_NI.YEnums)kind)
             {
                 case YASIO_NI.YEnums.YEK_PACKET:
-                    (int cmd, NativeDataView ud, Stream hold) = nsm._packeter.DecodePDU(bytes, len);
+                    (int cmd, NativeDataView ud, Stream hold) = nsm._packeter.DecodePDU(YASIO_NI.yasio_unwrap_ptr(opaque, 0), YASIO_NI.yasio_unwrap_len(opaque, 0));
                     nsm._packeter.HandleEvent(NetworkEvent.PACKET, cmd, ud, channel);
                     hold?.Dispose();
                     break;

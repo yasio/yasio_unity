@@ -22,7 +22,7 @@ namespace NSM2
         public const string LIBNAME = "yasio";
 #endif
 
-        public delegate void YNIEventDelegate(int kind, int status, int cidx, IntPtr t, IntPtr bytes, int len);
+        public delegate void YNIEventDelegate(int kind, int status, int cidx, IntPtr t, IntPtr opaque);
         public delegate int YNIResolvDelegate(string host, IntPtr sbuf);
         public delegate void YNIPrintDelegate(int level, string msg);
 
@@ -101,6 +101,12 @@ namespace NSM2
 
         [DllImport(LIBNAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern long yasio_highp_clock();
+
+        [DllImport(LIBNAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr yasio_unwrap_ptr(IntPtr opaque, int offset);
+
+        [DllImport(LIBNAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int yasio_unwrap_len(IntPtr opaque, int offset);
 
         /// <summary>
         /// The yasio constants
