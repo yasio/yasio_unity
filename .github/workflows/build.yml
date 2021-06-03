@@ -92,4 +92,10 @@ jobs:
           path: ./NativeLibs/yasio/plugin_win/**/*
           name: plugin_win
           
-    
+  download-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download a Build Artifact
+        uses: actions/download-artifact@v2.0.9
+      - name: Display structure of downloaded files
+        run: ls -R
