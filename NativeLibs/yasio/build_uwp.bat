@@ -3,7 +3,7 @@ cmake --build build_uwp --config MinSizeRel
 md plugin_win\Plugins\WSA\x86
 copy /Y build_uwp\MinSizeRel\yasio.dll plugin_win\Plugins\WSA\x86\
 
-cmake -B build_uwp64 -DCMAKE_SYSTEM_NAME=WindowsStore "-DCMAKE_SYSTEM_VERSION=10.0" -DBUILD_SHARED_LIBS=ON -DYAISO_BUILD_NI=ON
+cmake -B build_uwp64 -A x64 -DCMAKE_SYSTEM_NAME=WindowsStore "-DCMAKE_SYSTEM_VERSION=10.0" -DBUILD_SHARED_LIBS=ON -DYAISO_BUILD_NI=ON
 cmake --build build_uwp64 --config MinSizeRel
 md plugin_win\Plugins\WSA\x64
 copy /Y build_uwp64\MinSizeRel\yasio.dll plugin_win\Plugins\WSA\x64\
