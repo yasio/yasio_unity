@@ -281,15 +281,15 @@ public:
     return false;
   }
 
-private:
+protected:
   std::vector<char> blob_;
 };
 
-using ibstream_view = basic_ibstream_view<::yasio::endian::convert_traits<::yasio::endian::network_convert_tag>>;
-using ibstream      = basic_ibstream<::yasio::endian::convert_traits<::yasio::endian::network_convert_tag>>;
+using ibstream_view = basic_ibstream_view<convert_traits<network_convert_tag>>;
+using ibstream      = basic_ibstream<convert_traits<network_convert_tag>>;
 
-using fast_ibstream_view = basic_ibstream_view<::yasio::endian::convert_traits<::yasio::endian::host_convert_tag>>;
-using fast_ibstream      = basic_ibstream<::yasio::endian::convert_traits<::yasio::endian::host_convert_tag>>;
+using fast_ibstream_view = basic_ibstream_view<convert_traits<host_convert_tag>>;
+using fast_ibstream      = basic_ibstream<convert_traits<host_convert_tag>>;
 
 } // namespace yasio
 

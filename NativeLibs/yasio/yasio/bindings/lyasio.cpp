@@ -28,10 +28,9 @@ SOFTWARE.
 #include "yasio/ibstream.hpp"
 #include "yasio/obstream.hpp"
 #include "yasio/yasio.hpp"
-#include "yasio/bindings/lyasio.h"
+#include "yasio/bindings/lyasio.hpp"
 #include "yasio/bindings/yasio_sol.hpp"
 using namespace yasio;
-using namespace yasio::inet;
 
 namespace lyasio
 {
@@ -137,7 +136,7 @@ YASIO_LUA_API int luaopen_yasio(lua_State* L)
   auto yasio_lib = state_view.create_named_table("yasio");
 #  endif
   yasio_lib.new_usertype<io_event>(
-      "io_event", "kind", &io_event::kind, "status", &io_event::status, "packet",
+      "io_event", "kind", &io_event::kind, "status", &io_event::status, "passive", [](io_event* e) { return !!e->passive(); }, "packet",
       [](io_event* ev, sol::variadic_args args) {
         bool copy = false;
         if (args.size() >= 2)
@@ -298,6 +297,9 @@ YASIO_LUA_API int luaopen_yasio(lua_State* L)
   YASIO_EXPORT_ENUM(YCF_REUSEADDR);
   YASIO_EXPORT_ENUM(YCF_EXCLUSIVEADDRUSE);
 
+  YASIO_EXPORT_ENUM(YEK_ON_OPEN);
+  YASIO_EXPORT_ENUM(YEK_ON_CLOSE);
+  YASIO_EXPORT_ENUM(YEK_ON_PACKET);
   YASIO_EXPORT_ENUM(YEK_CONNECT_RESPONSE);
   YASIO_EXPORT_ENUM(YEK_CONNECTION_LOST);
   YASIO_EXPORT_ENUM(YEK_PACKET);
@@ -511,6 +513,7 @@ YASIO_LUA_API int luaopen_yasio(lua_State* L)
 
                                      .addFunction("kind", &io_event::kind)
                                      .addFunction("status", &io_event::status)
+                                     .addStaticFunction("passive", [](io_event* ev) { return !!ev->passive(); })
                                      .addStaticFunction("packet",
                                                         [](io_event* ev, bool /*raw*/, bool copy) {
                                                           auto& pkt = ev->packet();
@@ -660,6 +663,9 @@ YASIO_LUA_API int luaopen_yasio(lua_State* L)
   YASIO_EXPORT_ENUM(YCF_REUSEADDR);
   YASIO_EXPORT_ENUM(YCF_EXCLUSIVEADDRUSE);
 
+  YASIO_EXPORT_ENUM(YEK_ON_OPEN);
+  YASIO_EXPORT_ENUM(YEK_ON_CLOSE);
+  YASIO_EXPORT_ENUM(YEK_ON_PACKET);
   YASIO_EXPORT_ENUM(YEK_CONNECT_RESPONSE);
   YASIO_EXPORT_ENUM(YEK_CONNECTION_LOST);
   YASIO_EXPORT_ENUM(YEK_PACKET);

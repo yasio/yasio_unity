@@ -113,6 +113,16 @@ SOFTWARE.
 // #define YASIO_HAVE_HALF_FLOAT 1
 
 /*
+** Uncomment or add compiler flag -DYASIO_ENABLE_PASSIVE_EVENT to enable server channel open/close event
+*/
+// #define YASIO_ENABLE_PASSIVE_EVENT 1
+
+/*
+** Uncomment or add compiler flag -DYASIO_NO_USER_TIMER to disable io_channel user_timer
+*/
+// #define YASIO_NO_USER_TIMER 1
+
+/*
 ** Workaround for 'vs2013 without full c++11 support', in the future, drop vs2013 support and
 ** follow 3 lines code will be removed
 */
@@ -136,11 +146,15 @@ SOFTWARE.
 #endif
 
 #if !defined(YASIO_API)
-#  if defined(_WINDLL)
-#    if defined(YASIO_SHARED_LIB)
-#      define YASIO_API __declspec(dllexport)
+#  if defined(YASIO_BUILD_AS_SHARED) && !defined(YASIO_HEADER_ONLY)
+#    if defined(_WIN32)
+#      if defined(YASIO_LIB)
+#        define YASIO_API __declspec(dllexport)
+#      else
+#        define YASIO_API __declspec(dllimport)
+#      endif
 #    else
-#      define YASIO_API __declspec(dllimport)
+#      define YASIO_API
 #    endif
 #  else
 #    define YASIO_API
@@ -165,10 +179,14 @@ SOFTWARE.
 #endif
 // clang-format on
 
+#if defined(UE_BUILD_DEBUG) || defined(UE_BUILD_DEVELOPMENT) || defined(UE_BUILD_TEST) || defined(UE_BUILD_SHIPPING) || defined(UE_SERVER)
+#  define YASIO_INSIDE_UNREAL 1
+#endif // Unreal Engine 4 bullshit
+
 /*
 **  The yasio version macros
 */
-#define YASIO_VERSION_NUM 0x033701
+#define YASIO_VERSION_NUM 0x033703
 
 /*
 ** The macros used by io_service.

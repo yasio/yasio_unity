@@ -75,6 +75,7 @@ typedef struct ares_addrinfo ares_addrinfo;
 
 namespace yasio
 {
+YASIO__NS_INLINE
 namespace inet
 {
 // options
@@ -126,23 +127,31 @@ enum
   // params: connect_timeout:int(10)
   YOPT_S_CONNECT_TIMEOUT,
 
+  // Set connect timeout in milliseconds
+  // params: connect_timeout : int(10000),
+  YOPT_S_CONNECT_TIMEOUTMS,
+
   // Set dns cache timeout in seconds
   // params: dns_cache_timeout : int(600),
   YOPT_S_DNS_CACHE_TIMEOUT,
 
-  // Set dns queries timeout in milliseconds, default is: 5000
-  // params: dns_queries_timeout : int(5000)
+  // Set dns cache timeout in milliseconds
+  // params: dns_cache_timeout : int(600000),
+  YOPT_S_DNS_CACHE_TIMEOUTMS,
+
+  // Set dns queries timeout in seconds, default is: 5
+  // params: dns_queries_timeout : int(5)
   // remarks:
   //         a. this option must be set before 'io_service::start'
   //         b. only works when have c-ares
-  //         c. since v3.33.0 it's milliseconds, previous is seconds.
-  //         d. the timeout algorithm of c-ares is complicated, usually, by default, dns queries
+  //         c. the timeout algorithm of c-ares is complicated, usually, by default, dns queries
   //         will failed with timeout after more than 75 seconds.
-  //         e. for more detail, please see:
+  //         d. for more detail, please see:
   //         https://c-ares.haxx.se/ares_init_options.html
   YOPT_S_DNS_QUERIES_TIMEOUT,
 
-  // [DEPRECATED], same with YOPT_S_DNS_QUERIES_TIMEOUT
+  // Set dns queries timeout in milliseconds, default is: 5000
+  // see also: YOPT_S_DNS_QUERIES_TIMEOUT
   YOPT_S_DNS_QUERIES_TIMEOUTMS,
 
   // Set dns queries tries when timeout reached, default is: 5
@@ -274,9 +283,12 @@ enum
 // event kinds
 enum
 {
-  YEK_CONNECT_RESPONSE = 1,
-  YEK_CONNECTION_LOST,
-  YEK_PACKET,
+  YEK_ON_OPEN = 1,
+  YEK_ON_CLOSE,
+  YEK_ON_PACKET,
+  YEK_CONNECT_RESPONSE = YEK_ON_OPEN,
+  YEK_CONNECTION_LOST  = YEK_ON_CLOSE,
+  YEK_PACKET           = YEK_ON_PACKET,
 };
 
 // the network core service log level
@@ -287,6 +299,23 @@ enum
   YLOG_I,
   YLOG_E,
 };
+
+namespace errc
+{
+enum
+{
+  no_error              = 0,   // No error.
+  read_timeout          = -28, // The remote host did not respond after a period of time.
+  invalid_packet        = -27, // Invalid packet.
+  resolve_host_failed   = -26, // Resolve host failed.
+  no_available_address  = -25, // No available address to connect.
+  shutdown_by_localhost = -24, // Local shutdown the connection.
+  ssl_handshake_failed  = -23, // SSL handshake failed.
+  ssl_write_failed      = -22, // SSL write failed.
+  ssl_read_failed       = -21, // SSL read failed.
+  eof                   = -20, // end of file.
+};
+}
 
 // class fwds
 class highp_timer;
@@ -342,6 +371,9 @@ struct io_hostent {
 
 class YASIO_API highp_timer {
 public:
+  highp_timer()                   = default;
+  highp_timer(const highp_timer&) = delete;
+  highp_timer(highp_timer&&)      = delete;
   void expires_from_now(const std::chrono::microseconds& duration)
   {
     this->duration_    = duration;
@@ -394,14 +426,30 @@ struct YASIO_API io_base {
     NONE,
     READ,
     WRITE,
+    OPEN_SOCKET,
+    BIND_SOCKET,
+    LISTEN_SOCKET
   };
-  io_base() : error_(0), state_(state::CLOSED), opmask_(0) {}
+  io_base() : error_(0), state_(state::CLOSED), opmask_(0)
+  {
+    static unsigned int s_object_id = 0;
+    this->id_                       = ++s_object_id;
+  }
   virtual ~io_base() {}
+
   void set_last_errno(int error, error_stage stage = error_stage::NONE)
   {
     error_       = error;
     error_stage_ = stage;
   }
+
+#if !defined(YASIO_MINIFY_EVENT)
+  // usedata
+  union {
+    void* ptr;
+    int ival;
+  } ud_{};
+#endif
 
   std::shared_ptr<xxsocket> socket_;
   int error_; // socket error(>= -1), application error(< -1)
@@ -412,6 +460,10 @@ struct YASIO_API io_base {
   bool pollout_registerred_ = false;
   std::atomic<state> state_;
   uint8_t opmask_;
+  unsigned int id_;
+
+public:
+  unsigned int id() const { return id_; }
 };
 
 #if defined(YASIO_SSL_BACKEND)
@@ -462,6 +514,9 @@ public:
   long long bytes_transferred() const { return bytes_transferred_; }
   unsigned int connect_id() const { return connect_id_; }
 
+#if !defined(YASIO_NO_USER_TIMER)
+  highp_timer& get_user_timer() { return this->user_timer_; }
+#endif
 protected:
   YASIO__DECL void enable_multicast_group(const ip::endpoint& ep, int loopback);
   YASIO__DECL int join_multicast_group();
@@ -518,6 +573,10 @@ private:
   // The timer for check resolve & connect timeout
   highp_timer timer_;
 
+#if !defined(YASIO_NO_USER_TIMER)
+  // The timer for user
+  highp_timer user_timer_;
+#endif
   // The stream mode application protocol (based on tcp/udp/kcp) unpack params
   struct __unnamed01 {
     int max_frame_length       = YASIO_SZ(10, M); // 10MBytes
@@ -605,13 +664,12 @@ class io_transport : public io_base {
   io_transport(const io_transport&) = delete;
 
 public:
-  unsigned int id() const { return id_; }
+  int cindex() const { return ctx_->index_; }
 
   ip::endpoint local_endpoint() const { return socket_->local_endpoint(); }
   virtual ip::endpoint remote_endpoint() const { return socket_->peer_endpoint(); }
 
   io_channel* get_context() const { return ctx_; }
-  int cindex() const { return ctx_->index_; }
 
   virtual ~io_transport() { send_queue_.clear(); }
 
@@ -624,8 +682,8 @@ protected:
     return std::move(expected_packet_);
   }
 
-  // Returns the custom print function
-  YASIO__DECL const print_fn2_t& cprint() const;
+  // For log macro only
+  YASIO__DECL const print_fn2_t& __get_cprint() const;
 
   // Call at user thread
   YASIO__DECL virtual int write(std::vector<char>&&, completion_cb_t&&);
@@ -655,13 +713,11 @@ protected:
   bool is_valid() const { return state_ == io_base::state::OPEN; }
   void invalid() { state_ = io_base::state::CLOSED; }
 
-  unsigned int id_;
-
   char buffer_[YASIO_INET_BUFFER_SIZE]; // recv buffer, 64K
   int offset_ = 0;                      // recv buffer offset
 
-  std::vector<char> expected_packet_;
   int expected_size_ = -1;
+  std::vector<char> expected_packet_;
 
   io_channel* ctx_;
 
@@ -669,15 +725,6 @@ protected:
   std::function<int(void*, int)> read_cb_;
 
   privacy::concurrent_queue<send_op_ptr> send_queue_;
-
-#if !defined(YASIO_MINIFY_EVENT)
-private:
-  // The user data
-  union {
-    void* ptr;
-    int ival;
-  } ud_;
-#endif
 };
 
 class YASIO_API io_transport_tcp : public io_transport {
@@ -774,72 +821,85 @@ inline io_packet&& forward_packet(packet_t&& pkt) { return std::move(*pkt); }
 inline io_packet::pointer packet_data(packet_t& pkt) { return pkt->data(); }
 inline io_packet::size_type packet_len(packet_t& pkt) { return pkt->size(); }
 #endif
+
+/*
+ * Notes: store some properties of event source to make sure user can safe get them deferred
+ */
 class io_event final {
 public:
-  io_event(int cindex, int kind, int error)
-      : cindex_(cindex), kind_(kind), status_(error), transport_(nullptr), packet_({})
+  io_event(int cidx, int kind, int status, io_channel* source /*not nullable*/, int passive = 0)
+      : kind_(kind), writable_(0), passive_(passive), status_(status), cindex_(cidx), source_id_(source->id_), source_(source)
+  {
 #if !defined(YASIO_MINIFY_EVENT)
-        ,
-        timestamp_(highp_clock()), transport_udata_(nullptr), transport_id_(-1)
+    source_ud_ = source_->ud_.ptr;
 #endif
-  {}
-  io_event(int cindex, int kind, int error, transport_handle_t transport)
-      : cindex_(cindex), kind_(kind), status_(error), transport_(transport), packet_({})
+  }
+  io_event(int cidx, int kind, int status, io_transport* source /*not nullable*/)
+      : kind_(kind), writable_(1), passive_(0), status_(status), cindex_(cidx), source_id_(source->id_), source_(source)
+  {
 #if !defined(YASIO_MINIFY_EVENT)
-        ,
-        timestamp_(highp_clock()), transport_udata_(transport->ud_.ptr), transport_id_(transport->id_)
+    source_ud_ = source_->ud_.ptr;
 #endif
-  {}
-  io_event(int cindex, int kind, transport_handle_t transport, std::vector<char> packet)
-      : cindex_(cindex), kind_(kind), status_(0), transport_(transport), packet_(wrap_packet(packet))
+  }
+  io_event(int cidx, io_packet&& pkt, io_transport* source /*not nullable*/)
+      : kind_(YEK_ON_PACKET), writable_(1), passive_(0), status_(0), cindex_(cidx), source_id_(source->id_), source_(source), packet_(wrap_packet(pkt))
+  {
 #if !defined(YASIO_MINIFY_EVENT)
-        ,
-        timestamp_(highp_clock()), transport_udata_(transport->ud_.ptr), transport_id_(transport->id_)
+    source_ud_ = source_->ud_.ptr;
 #endif
-  {}
-  io_event(io_event&& rhs)
-      : cindex_(rhs.cindex_), kind_(rhs.kind_), status_(rhs.status_), transport_(rhs.transport_), packet_(std::move(rhs.packet_))
-#if !defined(YASIO_MINIFY_EVENT)
-        ,
-        timestamp_(rhs.timestamp_), transport_udata_(rhs.transport_udata_), transport_id_(rhs.transport_id_)
-#endif
-  {}
+  }
+  io_event(const io_event&) = delete;
+  io_event(io_event&& rhs)  = delete;
   ~io_event() {}
 
+public:
   int cindex() const { return cindex_; }
-
-  int kind() const { return kind_; }
   int status() const { return status_; }
 
+  int kind() const { return kind_; }
+
+  // whether the event triggered by server channel
+  int passive() const { return passive_; }
+
   packet_t& packet() { return packet_; }
-  transport_handle_t transport() const { return transport_; }
+
+  /*[nullable]*/ transport_handle_t transport() const { return writable_ ? static_cast<transport_handle_t>(source_) : nullptr; }
+
+  io_base* source() const { return source_; }
+  unsigned int source_id() const { return source_id_; }
 
 #if !defined(YASIO_MINIFY_EVENT)
   /* Gets to transport user data when process this event */
-  template <typename _Uty = void*> _Uty transport_udata() const { return (_Uty)(uintptr_t)transport_udata_; }
+  template <typename _Uty = void*> _Uty transport_ud() const { return (_Uty)(uintptr_t)source_ud_; }
   /* Sets trasnport user data when process this event */
-  template <typename _Uty = void*> void transport_udata(_Uty uval)
+  template <typename _Uty = void*> void transport_ud(_Uty uval)
   {
-    transport_udata_ = (void*)(uintptr_t)uval;
-    if (transport_)
-      transport_->ud_.ptr = (void*)(uintptr_t)uval;
+    source_ud_ = (void*)(uintptr_t)uval;
+
+    auto t = this->transport();
+    if (t)
+      t->ud_.ptr = (void*)(uintptr_t)uval;
   }
-  unsigned int transport_id() const { return transport_id_; }
   highp_time_t timestamp() const { return timestamp_; }
 #endif
 #if !defined(YASIO_DISABLE_OBJECT_POOL)
   DEFINE_CONCURRENT_OBJECT_POOL_ALLOCATION(io_event, 512)
 #endif
 private:
-  int cindex_;
-  int kind_;
+  unsigned int kind_ : 30;
+  unsigned int writable_ : 1;
+  unsigned int passive_ : 1;
+
   int status_;
-  transport_handle_t transport_;
+
+  int cindex_;
+  unsigned int source_id_;
+
+  io_base* source_;
   packet_t packet_;
 #if !defined(YASIO_MINIFY_EVENT)
-  highp_time_t timestamp_;
-  void* transport_udata_;
-  unsigned int transport_id_;
+  void* source_ud_;
+  highp_time_t timestamp_ = highp_clock();
 #endif
 };
 
@@ -995,7 +1055,7 @@ private:
 #endif
 
 #if defined(YASIO_HAVE_CARES)
-  static void ares_getaddrinfo_cb(void* arg, int status, int timeouts, ares_addrinfo* answerlist);
+  YASIO__DECL static void ares_getaddrinfo_cb(void* arg, int status, int timeouts, ares_addrinfo* answerlist);
   void ares_work_started() { ++ares_outstanding_work_; }
   void ares_work_finished()
   {
@@ -1027,6 +1087,7 @@ private:
   YASIO__DECL void unpack(transport_handle_t, int bytes_expected, int bytes_transferred, int bytes_to_strip);
 
   // The op mask will be cleared, the state will be set CLOSED when clear_state is 'true'
+  YASIO__DECL bool cleanup_channel(io_channel* channel, bool clear_state = true);
   YASIO__DECL bool cleanup_io(io_base* obj, bool clear_state = true);
 
   YASIO__DECL void handle_close(transport_handle_t);
@@ -1065,8 +1126,8 @@ private:
 
   int local_address_family() const { return ((ipsv_ & ipsv_ipv4) || !ipsv_) ? AF_INET : AF_INET6; }
 
-  /* Returns the custom print function */
-  inline const print_fn2_t& cprint() const { return options_.print_; }
+  /* For log macro only */
+  inline const print_fn2_t& __get_cprint() const { return options_.print_; }
 
 private:
   state state_ = state::UNINITIALIZED; // The service state
@@ -1156,6 +1217,9 @@ private:
 }; // io_service
 
 } // namespace inet
+#if !YASIO__HAS_NS_INLINE
+using namespace yasio::inet;
+#endif
 } /* namespace yasio */
 
 #define yasio_shared_service yasio::gc::singleton<yasio::inet::io_service>::instance

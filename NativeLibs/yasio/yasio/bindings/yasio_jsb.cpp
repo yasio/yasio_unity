@@ -29,16 +29,19 @@ SOFTWARE.
 #define YASIO_HEADER_ONLY 1
 #define YASIO_HAVE_KCP 1
 
-#include "yasio/bindings/yasio_jsb.h"
+#include "yasio/bindings/yasio_jsb.hpp"
 #include "yasio/yasio.hpp"
 #include "yasio/ibstream.hpp"
 #include "yasio/obstream.hpp"
 #include "yasio/detail/ref_ptr.hpp"
 
+// A workaround to fix compile issue caused by `CCPlatformMacros.h` doesn't handle `__has_attribute` it properly
+#  if !__has_attribute(format)
+#    undef __has_attribute
+#  endif
 #include "cocos2d.h"
 #include "scripting/js-bindings/manual/cocos2d_specifics.hpp"
 using namespace yasio;
-using namespace yasio::inet;
 using namespace cocos2d;
 
 namespace yasio_jsb
