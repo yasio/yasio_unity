@@ -86,6 +86,7 @@ jobs:
         run: |
           cd NativeLibs/yasio
           .\build_win.bat
+          .\build_uwp.bat
       - name: Upload
         uses: actions/upload-artifact@v2
         with:
