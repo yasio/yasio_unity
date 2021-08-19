@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////////////////////////////////////////
-// A multi-platform support c++11 library with focus on asynchronous socket I/O for any 
+// A multi-platform support c++11 library with focus on asynchronous socket I/O for any
 // client application.
 //////////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -21,37 +21,27 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
+#ifndef YAISO__ERRC_HPP
+#define YAISO__ERRC_HPP
 
-#include "Modules/ModuleManager.h"
-
-#include "yasio/yasio.hpp"
-
-using namespace yasio;
-
-DECLARE_LOG_CATEGORY_EXTERN(yasio_ue, Log, All);
-DEFINE_LOG_CATEGORY(yasio_ue);
-
-YASIO_API void yasio_unreal_init()
+namespace yasio
 {
-    print_fn2_t log_cb = [](int level, const char* msg) {
-        FString text(msg);
-        const TCHAR* tstr = *text;
-        UE_LOG(yasio_ue, Log, TEXT("%s"), tstr);
-    };
-    io_service::init_globals(log_cb);
-}
-YASIO_API void yasio_unreal_cleanup()
+namespace errc
 {
-    io_service::cleanup_globals();
-}
-
-#if defined(YASIO_INSIDE_UNREAL) && (YASIO_BUILD_AS_SHARED)
-class yasio_unreal_module : public IModuleInterface
+enum
 {
-public:
-    /** IModuleInterface implementation */
-    void StartupModule() override {}
-    void ShutdownModule() override {}
+  no_error              = 0,   // No error.
+  read_timeout          = -28, // The remote host did not respond after a period of time.
+  invalid_packet        = -27, // Invalid packet.
+  resolve_host_failed   = -26, // Resolve host failed.
+  no_available_address  = -25, // No available address to connect.
+  shutdown_by_localhost = -24, // Local shutdown the connection.
+  ssl_handshake_failed  = -23, // SSL handshake failed.
+  ssl_write_failed      = -22, // SSL write failed.
+  ssl_read_failed       = -21, // SSL read failed.
+  eof                   = -20, // end of file.
 };
-IMPLEMENT_MODULE(yasio_unreal_module, yasio)
+}
+} // namespace yasio
+
 #endif
