@@ -10,7 +10,7 @@
 // SOFTWARE.
 //
 
-/* Match with yasio-3.37.4 */
+/* Match with yasio-3.37.4+ */
 using System;
 using System.Runtime.InteropServices;
 
