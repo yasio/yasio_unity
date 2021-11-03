@@ -97,7 +97,15 @@ SOFTWARE.
 #  define YASIO__HAS_UDS 0
 #endif
 
+// Tests whether current OS support route client io event in kernel for udp server
+#if defined(_WIN32)
+#  define YASIO__UDP_KROUTE 0
+#else
+#  define YASIO__UDP_KROUTE 1
+#endif
+
 // Test whether sockaddr has member 'sa_len'
+// see also: https://github.com/freebsd/freebsd-src/blob/main/sys/sys/socket.h#L329
 #if defined(__linux__) || defined(_WIN32)
 #  define YASIO__HAS_SA_LEN 0
 #else
@@ -129,11 +137,9 @@ SOFTWARE.
 #if !defined(YASIO__NO_EXCEPTIONS)
 #  define YASIO__THROW(x, retval) throw(x)
 #  define YASIO__THROW0(x) throw(x)
-#  define YASIO__THROWV(x, val) (throw(x), (val))
 #else
 #  define YASIO__THROW(x, retval) return (retval)
 #  define YASIO__THROW0(x) return
-#  define YASIO__THROWV(x, val) (val)
 #endif
 
 // Compatibility with non-clang compilers...

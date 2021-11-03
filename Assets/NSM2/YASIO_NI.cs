@@ -10,7 +10,7 @@
 // SOFTWARE.
 //
 
-/* Match with yasio-3.37.4+ */
+/* Match with yasio-3.37.6+ */
 using System;
 using System.Runtime.InteropServices;
 
@@ -113,9 +113,8 @@ namespace NSM2
         /// <summary>
         /// The yasio constants
         /// </summary>
-        public enum YEnums
-        {
-            #region Channel mask enums, copy from yasio.hpp
+        public enum YEnums {
+#region Channel mask enums, copy from yasio.hpp
             YCM_CLIENT = 1,
             YCM_SERVER = 1 << 1,
             YCM_TCP = 1 << 2,
@@ -152,60 +151,60 @@ namespace NSM2
             // Set whether deferred dispatch event.
             // params: deferred_event:int(1)
             YOPT_S_DEFERRED_EVENT = 1,
-  
+
             // Set custom resolve function, native C++ ONLY.
             // params: func:resolv_fn_t*
             // remarks: you must ensure thread safe of it.
             YOPT_S_RESOLV_FN,
-  
+
             // Set custom print function, native C++ ONLY.
             // parmas: func:print_fn_t
             // remarks: you must ensure thread safe of it.
             YOPT_S_PRINT_FN,
-  
+
             // Set custom print function, native C++ ONLY.
             // parmas: func:print_fn2_t
             // remarks: you must ensure thread safe of it.
             YOPT_S_PRINT_FN2,
-  
+
             // Set event callback
             // params: func:event_cb_t*
             // remarks: this callback will be invoke at io_service::dispatch caller thread
             YOPT_S_EVENT_CB,
-  
+
             // Sets callback before defer dispatch event.
             // params: func:defer_event_cb_t*
             // remarks: this callback invoke at io_service thread
             YOPT_S_DEFER_EVENT_CB,
-  
+
             // Set tcp keepalive in seconds, probes is tries.
             // params: idle:int(7200), interal:int(75), probes:int(10)
             YOPT_S_TCP_KEEPALIVE,
-  
+
             // Don't start a new thread to run event loop
             // params: value:int(0)
             YOPT_S_NO_NEW_THREAD,
-  
+
             // Sets ssl verification cert, if empty, don't verify
             // params: path:const char*
             YOPT_S_SSL_CACERT,
-  
+
             // Set connect timeout in seconds
             // params: connect_timeout:int(10)
             YOPT_S_CONNECT_TIMEOUT,
-  
+
             // Set connect timeout in milliseconds
             // params: connect_timeout : int(10000),
             YOPT_S_CONNECT_TIMEOUTMS,
-  
+
             // Set dns cache timeout in seconds
             // params: dns_cache_timeout : int(600),
             YOPT_S_DNS_CACHE_TIMEOUT,
-  
+
             // Set dns cache timeout in milliseconds
             // params: dns_cache_timeout : int(600000),
             YOPT_S_DNS_CACHE_TIMEOUTMS,
-  
+
             // Set dns queries timeout in seconds, default is: 5
             // params: dns_queries_timeout : int(5)
             // remarks:
@@ -216,27 +215,34 @@ namespace NSM2
             //         d. for more detail, please see:
             //         https://c-ares.haxx.se/ares_init_options.html
             YOPT_S_DNS_QUERIES_TIMEOUT,
-  
+
             // Set dns queries timeout in milliseconds, default is: 5000
             // see also: YOPT_S_DNS_QUERIES_TIMEOUT
             YOPT_S_DNS_QUERIES_TIMEOUTMS,
-  
+
             // Set dns queries tries when timeout reached, default is: 4
             // params: dns_queries_tries : int(4)
             // remarks:
             //        a. this option must be set before 'io_service::start'
             //        b. relative option: YOPT_S_DNS_QUERIES_TIMEOUT
             YOPT_S_DNS_QUERIES_TRIES,
-  
+
             // Set dns server dirty
             // params: reserved : int(1)
             // remarks: you should set this option after your device network changed
             YOPT_S_DNS_DIRTY,
-  
+
+            // Set custom dns servers
+            // params: servers: const char*
+            // remarks:
+            //  a. IPv4 address is 8.8.8.8 or 8.8.8.8:53, the port is optional
+            //  b. IPv6 addresses with ports require square brackets [fe80::1%lo0]:53
+            YOPT_S_DNS_LIST,
+
             // Sets channel length field based frame decode function, native C++ ONLY
             // params: index:int, func:decode_len_fn_t*
             YOPT_C_LFBFD_FN = 101,
-  
+
             // Sets channel length field based frame decode params
             // params:
             //     index:int,
@@ -246,64 +252,72 @@ namespace NSM2
             //     length_adjustment:int(0),
             YOPT_C_UNPACK_PARAMS,
             YOPT_C_LFBFD_PARAMS = YOPT_C_UNPACK_PARAMS,
-  
+
             // Sets channel length field based frame decode initial bytes to strip
             // params:
             //     index:int,
             //     initial_bytes_to_strip:int(0)
             YOPT_C_UNPACK_STRIP,
             YOPT_C_LFBFD_IBTS = YOPT_C_UNPACK_STRIP,
-  
+
             // Sets channel remote host
             // params: index:int, ip:const char*
             YOPT_C_REMOTE_HOST,
-  
+
             // Sets channel remote port
             // params: index:int, port:int
             YOPT_C_REMOTE_PORT,
-  
+
             // Sets channel remote endpoint
             // params: index:int, ip:const char*, port:int
             YOPT_C_REMOTE_ENDPOINT,
-  
+
             // Sets local host for client channel only
             // params: index:int, ip:const char*
             YOPT_C_LOCAL_HOST,
-  
+
             // Sets local port for client channel only
             // params: index:int, port:int
             YOPT_C_LOCAL_PORT,
-  
+
             // Sets local endpoint for client channel only
             // params: index:int, ip:const char*, port:int
             YOPT_C_LOCAL_ENDPOINT,
-  
+
             // Mods channl flags
             // params: index:int, flagsToAdd:int, flagsToRemove:int
             YOPT_C_MOD_FLAGS,
-  
+
+            // Sets channel multicast interface, required on BSD-like system
+            // params: index:int, multi_ifaddr:const char*
+            // remarks:
+            //   a. On BSD-like(APPLE, etc...) system: ipv6 addr must be "::1%lo0" or "::%en0"
+            YOPT_C_MCAST_IF,
             // Enable channel multicast mode
             // params: index:int, multi_addr:const char*, loopback:int
+            // remarks:
+            //   a. On BSD-like(APPLE, etc...) system: ipv6 addr must be: "ff02::1%lo0" or "ff02::1%en0"
+            // refer to: https://www.tldp.org/HOWTO/Multicast-HOWTO-2.html
             YOPT_C_ENABLE_MCAST,
-  
+
             // Disable channel multicast mode
             // params: index:int
             YOPT_C_DISABLE_MCAST,
-  
+
             // The kcp conv id, must equal in two endpoint from the same connection
             // params: index:int, conv:int
             YOPT_C_KCP_CONV,
-  
+
             // Change 4-tuple association for io_transport_udp
             // params: transport:transport_handle_t
             // remarks: only works for udp client transport
             YOPT_T_CONNECT,
-  
+
             // Dissolve 4-tuple association for io_transport_udp
             // params: transport:transport_handle_t
             // remarks: only works for udp client transport
             YOPT_T_DISCONNECT,
-  
+
             // Sets io_base sockopt
             // params: io_base*,level:int,optname:int,optval:int,optlen:int
             YOPT_B_SOCKOPT = 201,

@@ -146,8 +146,8 @@ SOFTWARE.
 #endif
 
 #if !defined(YASIO_API)
-#  if defined(YASIO_BUILD_AS_SHARED) && !defined(YASIO_HEADER_ONLY)
-#    if defined(_WIN32)
+#  if defined(YASIO_BUILD_SHARED_LIBS) && !defined(YASIO_HEADER_ONLY)
+#    if defined(_WIN32) && defined(YASIO_EXPORT_DLL)
 #      if defined(YASIO_LIB)
 #        define YASIO_API __declspec(dllexport)
 #      else
@@ -186,7 +186,7 @@ SOFTWARE.
 /*
 **  The yasio version macros
 */
-#define YASIO_VERSION_NUM 0x033704
+#define YASIO_VERSION_NUM 0x033706
 
 /*
 ** The macros used by io_service.
@@ -220,6 +220,6 @@ SOFTWARE.
 //   https://c-ares.haxx.se/changelog.html
 //   https://github.com/c-ares/c-ares/issues/276
 //   https://github.com/c-ares/c-ares/pull/148
-#define YASIO_CARES_FALLBACK_DNS "8.8.8.8,223.5.5.5,114.114.114.114"
+#define YASIO_FALLBACK_NAME_SERVERS "8.8.8.8,223.5.5.5,114.114.114.114"
 
 #endif

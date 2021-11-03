@@ -289,7 +289,7 @@ else()
 endif()
 
 if(BUILD_SHARED_LIBS)
-   target_compile_definitions(yasio PRIVATE YASIO_SHARED_LIB=1)
+   target_compile_definitions(yasio PRIVATE YASIO_BUILD_SHARED_LIBS=1)
 endif()
 
 # checking build system have openssl

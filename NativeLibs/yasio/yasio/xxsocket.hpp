@@ -1,7 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////////////////
 // A multi-platform support c++11 library with focus on asynchronous socket I/O for any
 // client application.
-//
 //////////////////////////////////////////////////////////////////////////////////////////
 /*
 The MIT License (MIT)
@@ -38,194 +37,14 @@ SOFTWARE.
 #include <vector>
 #include <chrono>
 #include <functional>
-#include "yasio/detail/config.hpp"
+#include <memory>
+#include "yasio/detail/socket.hpp"
 #include "yasio/detail/logging.hpp"
 
 #if defined(_MSC_VER)
 #  pragma warning(push)
 #  pragma warning(disable : 4996)
 #endif
-
-#ifdef _WIN32
-#  if !defined(WIN32_LEAN_AND_MEAN)
-#    define WIN32_LEAN_AND_MEAN
-#  endif
-#  include <WinSock2.h>
-#  include <Windows.h>
-#  if defined(_WIN32) && !defined(_WINSTORE)
-#    include <Mswsock.h>
-#    include <Mstcpip.h>
-#  endif
-#  include <Ws2tcpip.h>
-#  if defined(YASIO_NT_COMPAT_GAI)
-#    include <Wspiapi.h>
-#  endif
-#  if YASIO__HAS_UDS
-#    include <afunix.h>
-#  endif
-typedef SOCKET socket_native_type;
-typedef int socklen_t;
-#  define poll WSAPoll
-#  pragma comment(lib, "ws2_32.lib")
-
-#  undef gai_strerror
-#else
-#  include <unistd.h>
-#  include <signal.h>
-#  include <sys/ioctl.h>
-#  include <netdb.h>
-#  include <sys/types.h>
-#  include <sys/poll.h>
-#  if defined(__linux__)
-#    include <sys/epoll.h>
-#  endif
-#  include <sys/select.h>
-#  include <sys/socket.h>
-#  include <sys/un.h>
-#  include <netinet/in.h>
-#  include <netinet/tcp.h>
-#  include <net/if.h>
-#  include <arpa/inet.h>
-#  if !defined(SD_RECEIVE)
-#    define SD_RECEIVE SHUT_RD
-#  endif
-#  if !defined(SD_SEND)
-#    define SD_SEND SHUT_WR
-#  endif
-#  if !defined(SD_BOTH)
-#    define SD_BOTH SHUT_RDWR
-#  endif
-#  if !defined(closesocket)
-#    define closesocket close
-#  endif
-#  if !defined(ioctlsocket)
-#    define ioctlsocket ioctl
-#  endif
-#  if defined(__linux__)
-#    define SO_NOSIGPIPE MSG_NOSIGNAL
-#  endif
-typedef int socket_native_type;
-#  undef socket
-#endif
-#define SD_NONE -1
-
-#include <fcntl.h> // common platform header
-
-// redefine socket error code for posix api
-#ifdef _WIN32
-
-#  undef EWOULDBLOCK
-#  undef EINPROGRESS
-#  undef EALREADY
-#  undef ENOTSOCK
-#  undef EDESTADDRREQ
-#  undef EMSGSIZE
-#  undef EPROTOTYPE
-#  undef ENOPROTOOPT
-#  undef EPROTONOSUPPORT
-#  undef ESOCKTNOSUPPORT
-#  undef EOPNOTSUPP
-#  undef EPFNOSUPPORT
-#  undef EAFNOSUPPORT
-#  undef EADDRINUSE
-#  undef EADDRNOTAVAIL
-#  undef ENETDOWN
-#  undef ENETUNREACH
-#  undef ENETRESET
-#  undef ECONNABORTED
-#  undef ECONNRESET
-#  undef ENOBUFS
-#  undef EISCONN
-#  undef ENOTCONN
-#  undef ESHUTDOWN
-#  undef ETOOMANYREFS
-#  undef ETIMEDOUT
-#  undef ECONNREFUSED
-#  undef ELOOP
-#  undef ENAMETOOLONG
-#  undef EHOSTDOWN
-#  undef EHOSTUNREACH
-#  undef ENOTEMPTY
-#  undef EPROCLIM
-#  undef EUSERS
-#  undef EDQUOT
-#  undef ESTALE
-#  undef EREMOTE
-#  undef EBADF
-#  undef EFAULT
-#  undef EAGAIN
-
-#  define EWOULDBLOCK WSAEWOULDBLOCK
-#  define EINPROGRESS WSAEINPROGRESS
-#  define EALREADY WSAEALREADY
-#  define ENOTSOCK WSAENOTSOCK
-#  define EDESTADDRREQ WSAEDESTADDRREQ
-#  define EMSGSIZE WSAEMSGSIZE
-#  define EPROTOTYPE WSAEPROTOTYPE
-#  define ENOPROTOOPT WSAENOPROTOOPT
-#  define EPROTONOSUPPORT WSAEPROTONOSUPPORT
-#  define ESOCKTNOSUPPORT WSAESOCKTNOSUPPORT
-#  define EOPNOTSUPP WSAEOPNOTSUPP
-#  define EPFNOSUPPORT WSAEPFNOSUPPORT
-#  define EAFNOSUPPORT WSAEAFNOSUPPORT
-#  define EADDRINUSE WSAEADDRINUSE
-#  define EADDRNOTAVAIL WSAEADDRNOTAVAIL
-#  define ENETDOWN WSAENETDOWN
-#  define ENETUNREACH WSAENETUNREACH
-#  define ENETRESET WSAENETRESET
-#  define ECONNABORTED WSAECONNABORTED
-#  define ECONNRESET WSAECONNRESET
-#  define ENOBUFS WSAENOBUFS
-#  define EISCONN WSAEISCONN
-#  define ENOTCONN WSAENOTCONN
-#  define ESHUTDOWN WSAESHUTDOWN
-#  define ETOOMANYREFS WSAETOOMANYREFS
-#  define ETIMEDOUT WSAETIMEDOUT
-#  define ECONNREFUSED WSAECONNREFUSED
-#  define ELOOP WSAELOOP
-#  define ENAMETOOLONG WSAENAMETOOLONG
-#  define EHOSTDOWN WSAEHOSTDOWN
-#  define EHOSTUNREACH WSAEHOSTUNREACH
-#  define ENOTEMPTY WSAENOTEMPTY
-#  define EPROCLIM WSAEPROCLIM
-#  define EUSERS WSAEUSERS
-#  define EDQUOT WSAEDQUOT
-#  define ESTALE WSAESTALE
-#  define EREMOTE WSAEREMOTE
-#  define EBADF WSAEBADF
-#  define EFAULT WSAEFAULT
-#  define EAGAIN WSATRY_AGAIN
-#endif
-
-#if !defined(MAXNS)
-#  define MAXNS 3
-#endif
-
-#define IN_MAX_ADDRSTRLEN INET6_ADDRSTRLEN
-
-#if !defined(_WS2IPDEF_)
-inline bool IN4_IS_ADDR_LOOPBACK(const in_addr* a)
-{
-  return ((a->s_addr & 0xff) == 0x7f); // 127/8
-}
-inline bool IN4_IS_ADDR_LINKLOCAL(const in_addr* a)
-{
-  return ((a->s_addr & 0xffff) == 0xfea9); // 169.254/16
-}
-inline bool IN6_IS_ADDR_GLOBAL(const in6_addr* a)
-{
-  //
-  // Check the format prefix and exclude addresses
-  // whose high 4 bits are all zero or all one.
-  // This is a cheap way of excluding v4-compatible,
-  // v4-mapped, loopback, multicast, link-local, site-local.
-  //
-  unsigned int High = (a->s6_addr[0] & 0xf0);
-  return ((High != 0) && (High != 0xf0));
-}
-#endif
-
-#define YASIO_ADDR_ANY(af) (af == AF_INET ? "0.0.0.0" : "::")
 
 namespace yasio
 {
@@ -379,13 +198,28 @@ inline bool is_global_in6_addr(const in6_addr* addr) { return !!IN6_IS_ADDR_GLOB
 
 struct endpoint {
 public:
+  enum
+  {
+    fmt_no_local   = 1,
+    fmt_no_port    = 1 << 1,
+    fmt_no_port_0  = 1 << 2,
+    fmt_no_un_path = 1 << 3,
+    fmt_default    = fmt_no_port_0 | fmt_no_un_path,
+  };
+#if defined(YASIO_ENABLE_UDS) && YASIO__HAS_UDS
+  static const size_t max_fmt_len = (std::max)(IN_MAX_ADDRSTRLEN + 2 /*[]*/ + sizeof("65535") /*:port*/, sizeof(sockaddr_un::sun_path));
+#else
+  static const size_t max_fmt_len = IN_MAX_ADDRSTRLEN + 2 /*[]*/ + sizeof("65535") /*:port*/;
+#endif
+
   endpoint() { this->zeroset(); }
   endpoint(const endpoint& rhs) { this->as_is(rhs); }
   explicit endpoint(const addrinfo* info) { as_is(info); }
   explicit endpoint(const sockaddr* info) { as_is(info); }
-  explicit endpoint(const char* addr, unsigned short port = 0) { as_in(addr, port); }
-  explicit endpoint(uint32_t addr, unsigned short port = 0) { as_in(addr, port); }
-  endpoint(int family, const void* addr, unsigned short port = 0) { as_in(family, addr, port); }
+  explicit endpoint(const char* str_ep) { as_is(str_ep); }
+  endpoint(const char* addr, unsigned short port) { as_in(addr, port); }
+  endpoint(uint32_t addr, unsigned short port) { as_in(addr, port); }
+  endpoint(int family, const void* addr, unsigned short port) { as_in(family, addr, port); }
 
   explicit operator bool() const { return this->af() != AF_UNSPEC; }
 
@@ -418,6 +252,36 @@ public:
     }
     return *this;
   }
+  /*
+   * IPv4: 127.0.0.1:2022
+   * IPv6: [fe80::1]:2022
+   */
+  endpoint& as_is(const char* str_ep)
+  {
+    char addr_part[IN_MAX_ADDRSTRLEN];
+    if (str_ep[0] == '[')
+    { // ipv6
+      const char* ip = str_ep + 1;
+      auto rbracket  = strchr(ip, ']');
+      if (rbracket && rbracket[1] == ':')
+      {
+        auto zone_value = parse_in6_zone(ip, addr_part, sizeof(addr_part), rbracket);
+        as_in6(ip, atoi(rbracket + 2), zone_value);
+      }
+    }
+    else
+    { // ipv4
+      auto colon = strchr(str_ep, ':');
+      if (colon)
+      {
+        auto n = colon - str_ep;
+        memcpy(addr_part, str_ep, n);
+        addr_part[n] = '\0';
+        as_in4(addr_part, atoi(colon + 1));
+      }
+    }
+    return *this;
+  }
   endpoint& as_in(int family, const void* addr_in, u_short port)
   {
     this->zeroset();
@@ -436,42 +300,48 @@ public:
     }
     return *this;
   }
-  endpoint& as_in(const char* addr, unsigned short port)
+  endpoint& as_in(const char* ip, unsigned short port)
   {
     this->zeroset();
 
-    /*
-     * Windows XP no inet_pton or inet_ntop
-     */
-    if (strchr(addr, ':') == nullptr)
-    { // ipv4
-      if (compat::inet_pton(AF_INET, addr, &this->in4_.sin_addr) == 1)
-      {
-        this->in4_.sin_family = AF_INET;
-        this->in4_.sin_port   = htons(port);
-        this->len(sizeof(sockaddr_in));
-      }
+    if (strchr(ip, ':'))
+    { // ipv6
+      char addr_part[IN_MAX_ADDRSTRLEN];
+      auto zone_value = parse_in6_zone(ip, addr_part, sizeof(addr_part), nullptr);
+      as_in6(ip, port, zone_value);
     }
     else
-    { // ipv6
-      if (compat::inet_pton(AF_INET6, addr, &this->in6_.sin6_addr) == 1)
-      {
-        this->in6_.sin6_family = AF_INET6;
-        this->in6_.sin6_port   = htons(port);
-        this->len(sizeof(sockaddr_in6));
-      }
+    { // ipv4
+      as_in4(ip, port);
     }
 
     return *this;
+  }
+  void as_in6(const char* ip, unsigned short port, unsigned int scope_id)
+  {
+    if (compat::inet_pton(AF_INET6, ip, &this->in6_.sin6_addr) == 1)
+    {
+      this->in6_.sin6_family   = AF_INET6;
+      this->in6_.sin6_port     = host_to_network(port);
+      this->in6_.sin6_scope_id = scope_id;
+      this->len(sizeof(sockaddr_in6));
+    }
+  }
+  void as_in4(const char* ip, unsigned short port)
+  {
+    if (compat::inet_pton(AF_INET, ip, &this->in4_.sin_addr) == 1)
+    {
+      this->in4_.sin_family = AF_INET;
+      this->in4_.sin_port   = host_to_network(port);
+      this->len(sizeof(sockaddr_in));
+    }
   }
   endpoint& as_in(uint32_t addr, u_short port)
   {
     this->zeroset();
 
-    this->af(AF_INET);
     this->addr_v4(addr);
     this->port(port);
-    this->len(sizeof(sockaddr_in));
     return *this;
   }
 
@@ -508,67 +378,142 @@ public:
 
   void ip(const char* addr)
   {
-    /*
-     * Windows XP no inet_pton or inet_ntop
-     */
-    if (strchr(addr, ':') == nullptr)
-    { // ipv4
-      this->in4_.sin_family = AF_INET;
-      compat::inet_pton(AF_INET, addr, &this->in4_.sin_addr);
-    }
-    else
+    if (strchr(addr, ':'))
     { // ipv6
       this->in6_.sin6_family = AF_INET6;
       compat::inet_pton(AF_INET6, addr, &this->in6_.sin6_addr);
+      this->len(sizeof(sockaddr_in6));
+    }
+    else
+    { // ipv4
+      this->in4_.sin_family = AF_INET;
+      compat::inet_pton(AF_INET, addr, &this->in4_.sin_addr);
+      this->len(sizeof(sockaddr_in));
     }
   }
-  std::string ip() const
+  std::string ip() const { return this->to_string(fmt_default | fmt_no_port); }
+  std::string to_string(int flags = fmt_default) const
   {
-    std::string ipstring(IN_MAX_ADDRSTRLEN - 1, '\0');
-
-    auto str = inaddr_to_string(
-        &ipstring.front(), [](const in_addr*) { return true; }, [](const in6_addr*) { return true; });
-
-    ipstring.resize(str ? strlen(str) : 0);
-    return ipstring;
+    std::string ret;
+    this->format_to(ret, flags);
+    return ret;
   }
-  // to_string with port, can simply add prefix "http::" or "https://" for url
-  std::string to_string() const
+
+  unsigned short port() const { return network_to_host(in4_.sin_port); }
+  void port(unsigned short value) { in4_.sin_port = host_to_network(value); }
+
+  // for ipv6 only
+  unsigned int scope_id() const { return af() == AF_INET6 ? static_cast<unsigned int>(this->in6_.sin6_scope_id) : 0u; }
+  void scope_id(unsigned int v)
   {
-    std::string addr(IN_MAX_ADDRSTRLEN + sizeof("65535") + 2, '[');
+    if (af() == AF_INET6)
+      this->in6_.sin6_scope_id = v;
+  }
 
-    size_t n = 0;
+  void addr_v4(uint32_t addr)
+  {
+    this->af(AF_INET);
+    in4_.sin_addr.s_addr = host_to_network(addr);
+    this->len(sizeof(sockaddr_in));
+  }
+  uint32_t addr_v4() const { return af() == AF_INET ? network_to_host(in4_.sin_addr.s_addr) : 0u; }
 
-    switch (sa_.sa_family)
+  // check does endpoint is global address, not linklocal or loopback
+  bool is_global() const
+  {
+    switch (af())
     {
       case AF_INET:
-        n = strlen(compat::inet_ntop(AF_INET, &in4_.sin_addr, &addr.front(), static_cast<socklen_t>(addr.length())));
-        n += sprintf(&addr.front() + n, ":%u", this->port());
-        break;
+        return is_global_in4_addr(&in4_.sin_addr);
       case AF_INET6:
-        n = strlen(compat::inet_ntop(AF_INET6, &in6_.sin6_addr, &addr.front() + 1, static_cast<socklen_t>(addr.length() - 1)));
-        n += sprintf(&addr.front() + n, "]:%u", this->port());
-        break;
-#if defined(YASIO_ENABLE_UDS) && YASIO__HAS_UDS
-      case AF_UNIX:
-        n = this->len();
-        addr.assign(un_.sun_path, n);
-        break;
-#endif
+        return is_global_in6_addr(&in6_.sin6_addr);
     }
-
-    addr.resize(n);
-
-    return addr;
+    return false;
   }
 
-  unsigned short port() const { return ntohs(in4_.sin_port); }
-  void port(unsigned short value) { in4_.sin_port = htons(value); }
+  void len(size_t n)
+  {
+#if !YASIO__HAS_SA_LEN
+    len_ = static_cast<uint8_t>(n);
+#else
+    sa_.sa_len = static_cast<uint8_t>(n);
+#endif
+  }
+  socklen_t len() const
+  {
+#if !YASIO__HAS_SA_LEN
+    return len_;
+#else
+    return sa_.sa_len;
+#endif
+  }
 
-  void addr_v4(uint32_t addr) { in4_.sin_addr.s_addr = htonl(addr); }
-  uint32_t addr_v4() const { return ntohl(in4_.sin_addr.s_addr); }
+  // format to buffer
+  size_t format_to(std::string& buf, int flags = 0) const
+  {
+    char str[endpoint::max_fmt_len];
+    size_t n = this->format_to(str, endpoint::max_fmt_len, flags);
+    if (n > 0)
+    {
+      buf.append(str, n);
+      return n;
+    }
+    return 0;
+  }
 
-  /*
+  /* format to
+   *
+   * @params:
+   *    buf: the buffer to output
+   *    buf_len: the buffer len, must be at least endpoint::max_fmt_len
+   * @returns:
+   *    the number of character written to the buf without null-termianted charactor
+   *
+   * @remark:
+   *   The buffer result should be
+   *    ipv4: xxx.xxx.xxx.xxx<:port> 127.0.0.1:2021
+   *    ipv6: [xxx....xxx]<:port> [fe80::1]:53
+   */
+  size_t format_to(char* buf, size_t buf_len, int flags) const
+  {
+    if (!(fmt_no_local & flags) || is_global())
+    {
+      size_t n = 0;
+      switch (af())
+      {
+        case AF_INET:
+          n = strlen(compat::inet_ntop(AF_INET, &in4_.sin_addr, buf, buf_len));
+          break;
+        case AF_INET6:
+          buf[n++] = '[';
+          n += strlen(compat::inet_ntop(AF_INET6, &in6_.sin6_addr, buf + n, buf_len - n));
+          buf[n++] = ']';
+          break;
+#if defined(YASIO_ENABLE_UDS) && YASIO__HAS_UDS
+        case AF_UNIX:
+          if (!(flags & fmt_no_un_path))
+          {
+            n = (std::min)(static_cast<size_t>(this->len()), buf_len);
+            memcpy(buf, un_.sun_path, n);
+          }
+          return n;
+#endif
+      }
+      if (n > 0)
+      {
+        if (!(flags & fmt_no_port))
+        {
+          u_short p = this->port();
+          if (!(flags & fmt_no_port_0) || p != 0)
+            n += sprintf(buf + n, ":%u", (unsigned int)p);
+        }
+      }
+      return n;
+    }
+    return 0;
+  }
+
+  /* format ipv4 only
    %N: s_net   127
    %H: s_host  0
    %L: s_lh    0
@@ -601,59 +546,8 @@ public:
     return s;
   }
 
-  // in_addr(ip) to string with pred
-  template <typename _Pred4, typename _Pred6> const char* inaddr_to_string(char* str /*[IN_MAX_ADDRSTRLEN]*/, _Pred4&& pred4, _Pred6&& pred6) const
-  {
-    switch (af())
-    {
-      case AF_INET:
-        if (pred4(&in4_.sin_addr))
-          return compat::inet_ntop(AF_INET, &in4_.sin_addr, str, INET_ADDRSTRLEN);
-        break;
-      case AF_INET6:
-        if (pred6(&in6_.sin6_addr))
-          return compat::inet_ntop(AF_INET6, &in6_.sin6_addr, str, INET6_ADDRSTRLEN);
-        break;
-    }
-    return nullptr;
-  }
-
-  // in_addr(ip) to csv without loopback or linklocal address
-  void inaddr_to_csv_nl(std::string& csv)
-  {
-    char str[INET6_ADDRSTRLEN] = {0};
-    if (inaddr_to_string(str, is_global_in4_addr, is_global_in6_addr))
-    {
-      csv += str;
-      csv += ',';
-    }
-  }
-
-  // the in_addr(from sockaddr) to csv string helper function without loopback or linklocal
-  // address
-  static void inaddr_to_csv_nl(const sockaddr* addr, std::string& csv) { endpoint(addr).inaddr_to_csv_nl(csv); }
-
-  // the in_addr/in6_addr to csv string helper function without loopback or linklocal address
-  // the inaddr should be union of in_addr,in6_addr or ensure it's memory enough when
-  // family=AF_INET6
-  static void inaddr_to_csv_nl(int family, const void* inaddr, std::string& csv) { endpoint(family, inaddr).inaddr_to_csv_nl(csv); }
-
-  void len(size_t n)
-  {
-#if !YASIO__HAS_SA_LEN
-    len_ = static_cast<uint8_t>(n);
-#else
-    sa_.sa_len = static_cast<uint8_t>(n);
-#endif
-  }
-  socklen_t len() const
-  {
-#if !YASIO__HAS_SA_LEN
-    return len_;
-#else
-    return sa_.sa_len;
-#endif
-  }
+  sockaddr* operator&() { return &sa_; }
+  const sockaddr* operator&() const { return &sa_; }
 
   union {
     sockaddr sa_;
@@ -666,6 +560,32 @@ public:
 #if !YASIO__HAS_SA_LEN
   uint8_t len_;
 #endif
+
+private:
+  unsigned int parse_in6_zone(const char*& ip, char* addr_part, size_t addr_part_maxn, const char* endptr)
+  {
+    unsigned int zone_value = 0;
+    auto zoneptr            = strchr(ip, '%');
+    if (zoneptr)
+    {
+
+#if defined(_WIN32)
+      zone_value = atoi(zoneptr + 1);
+#else
+      zone_value = ::if_nametoindex(zoneptr + 1);
+#endif
+      endptr = zoneptr;
+    }
+
+    if (endptr)
+    {
+      size_t n = (std::min)(static_cast<size_t>(endptr - ip), addr_part_maxn - 1);
+      memcpy(addr_part, ip, n);
+      addr_part[n] = '\0';
+      ip           = addr_part;
+    }
+    return zone_value;
+  }
 };
 
 // supported internet protocol flags
@@ -977,8 +897,13 @@ public:
   ** @returns: If no error occurs, set_optval returns zero. Otherwise, a value of SOCKET_ERROR is
   **       returned
   */
-  template <typename _Ty> inline int set_optval(int level, int optname, const _Ty& optval) { return set_optval(this->fd, level, optname, optval); }
-  template <typename _Ty> inline static int set_optval(socket_native_type sockfd, int level, int optname, const _Ty& optval)
+  template <typename _Ty>
+  inline int set_optval(int level, int optname, const _Ty& optval)
+  {
+    return set_optval(this->fd, level, optname, optval);
+  }
+  template <typename _Ty>
+  inline static int set_optval(socket_native_type sockfd, int level, int optname, const _Ty& optval)
   {
     return set_optval(sockfd, level, optname, &optval, static_cast<socklen_t>(sizeof(_Ty)));
   }
@@ -1001,14 +926,20 @@ public:
   ** @returns: If no error occurs, get_optval returns zero. Otherwise, a value of SOCKET_ERROR is
   *returned
   */
-  template <typename _Ty> inline _Ty get_optval(int level, int optname) const
+  template <typename _Ty>
+  inline _Ty get_optval(int level, int optname) const
   {
     _Ty optval = {};
     get_optval(this->fd, level, optname, optval);
     return optval;
   }
-  template <typename _Ty> inline int get_optval(int level, int optname, _Ty& optval) const { return get_optval(this->fd, level, optname, optval); }
-  template <typename _Ty> inline static int get_optval(socket_native_type sockfd, int level, int optname, _Ty& optval)
+  template <typename _Ty>
+  inline int get_optval(int level, int optname, _Ty& optval) const
+  {
+    return get_optval(this->fd, level, optname, optval);
+  }
+  template <typename _Ty>
+  inline static int get_optval(socket_native_type sockfd, int level, int optname, _Ty& optval)
   {
     socklen_t optlen = static_cast<socklen_t>(sizeof(_Ty));
     return get_optval(sockfd, level, optname, &optval, &optlen);
@@ -1027,8 +958,13 @@ public:
   **
   **
   */
-  template <typename _Ty> inline int ioctl(long cmd, const _Ty& value) const { return xxsocket::ioctl(this->fd, cmd, value); }
-  template <typename _Ty> inline static int ioctl(socket_native_type s, long cmd, const _Ty& value)
+  template <typename _Ty>
+  inline int ioctl(long cmd, const _Ty& value) const
+  {
+    return xxsocket::ioctl(this->fd, cmd, value);
+  }
+  template <typename _Ty>
+  inline static int ioctl(socket_native_type s, long cmd, const _Ty& value)
   {
     u_long argp = static_cast<u_long>(value);
     return ::ioctlsocket(s, cmd, &argp);

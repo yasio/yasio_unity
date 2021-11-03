@@ -31,7 +31,6 @@ SOFTWARE.
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
-#include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -42,7 +41,6 @@ SOFTWARE.
 #endif
 #include "yasio/detail/sz.hpp"
 #include "yasio/detail/config.hpp"
-#include "yasio/detail/endian_portable.hpp"
 #include "yasio/detail/object_pool.hpp"
 #include "yasio/detail/singleton.hpp"
 #include "yasio/detail/select_interrupter.hpp"
@@ -167,6 +165,13 @@ enum
   // remarks: you should set this option after your device network changed
   YOPT_S_DNS_DIRTY,
 
+  // Set custom dns servers
+  // params: servers: const char*
+  // remarks:
+  //  a. IPv4 address is 8.8.8.8 or 8.8.8.8:53, the port is optional
+  //  b. IPv6 addresses with ports require square brackets [fe80::1%lo0]:53
+  YOPT_S_DNS_LIST,
+
   // Sets channel length field based frame decode function, native C++ ONLY
   // params: index:int, func:decode_len_fn_t*
   YOPT_C_LFBFD_FN = 101,
@@ -216,8 +221,17 @@ enum
   // params: index:int, flagsToAdd:int, flagsToRemove:int
   YOPT_C_MOD_FLAGS,
 
+  // Sets channel multicast interface, required on BSD-like system
+  // params: index:int, multi_ifaddr:const char*
+  // remarks:
+  //   a. On BSD-like(APPLE, etc...) system: ipv6 addr must be "::1%lo0" or "::%en0"
+  YOPT_C_MCAST_IF,
+
   // Enable channel multicast mode
-  // params: index:int, multi_addr:const char*, loopback:int
+  // params: index:int, multi_addr:const char*, loopback:int,
+  // remarks:
+  //   a. On BSD-like(APPLE, etc...) system: ipv6 addr must be: "ff02::1%lo0" or "ff02::1%en0"
+  // refer to: https://www.tldp.org/HOWTO/Multicast-HOWTO-2.html
   YOPT_C_ENABLE_MCAST,
 
   // Disable channel multicast mode
@@ -296,6 +310,7 @@ enum
   YLOG_V,
   YLOG_D,
   YLOG_I,
+  YLOG_W,
   YLOG_E,
 };
 
@@ -488,7 +503,7 @@ class YASIO_API io_channel : public io_base {
   friend class io_transport_kcp;
 
 public:
-  io_service& get_service() { return service_; }
+  io_service& get_service() const { return service_; }
   int index() const { return index_; }
   u_short remote_port() const { return remote_port_; }
   YASIO__DECL std::string format_destination() const;
@@ -500,10 +515,12 @@ public:
   highp_timer& get_user_timer() { return this->user_timer_; }
 #endif
 protected:
-  YASIO__DECL void enable_multicast_group(const ip::endpoint& ep, int loopback);
-  YASIO__DECL int join_multicast_group();
-  YASIO__DECL void disable_multicast_group();
+  YASIO__DECL void enable_multicast(const char* addr, int loopback);
+  YASIO__DECL void disable_multicast();
+  YASIO__DECL void join_multicast_group();
   YASIO__DECL int configure_multicast_group(bool onoff);
+  // For log macro only
+  YASIO__DECL const print_fn2_t& __get_cprint() const;
 
 private:
   YASIO__DECL io_channel(io_service& service, int index);
@@ -583,7 +600,7 @@ private:
   std::string remote_host_;
   std::vector<ip::endpoint> remote_eps_;
 
-  ip::endpoint multiaddr_;
+  ip::endpoint multiaddr_, multiif_;
 
   // Current it's only for UDP
   std::vector<char> buffer_;
@@ -739,8 +756,8 @@ public:
   YASIO__DECL ip::endpoint remote_endpoint() const override;
 
 protected:
-  YASIO__DECL int connect();
-  YASIO__DECL int disconnect();
+  YASIO__DECL void connect();
+  YASIO__DECL void disconnect();
 
   YASIO__DECL int write(std::vector<char>&&, completion_cb_t&&) override;
   YASIO__DECL int write_to(std::vector<char>&&, const ip::endpoint&, completion_cb_t&&) override;
@@ -751,7 +768,7 @@ protected:
   YASIO__DECL const ip::endpoint& ensure_destination() const;
 
   // configure remote with specific endpoint
-  YASIO__DECL int confgure_remote(const ip::endpoint& peer);
+  YASIO__DECL void confgure_remote(const ip::endpoint& peer);
 
   // process received data from low level
   YASIO__DECL virtual int handle_input(const char* buf, int bytes_transferred, int& error, highp_time_t& wait_duration);
@@ -852,9 +869,14 @@ public:
 
 #if !defined(YASIO_MINIFY_EVENT)
   /* Gets to transport user data when process this event */
-  template <typename _Uty = void*> _Uty transport_ud() const { return (_Uty)(uintptr_t)source_ud_; }
+  template <typename _Uty = void*>
+  _Uty transport_ud() const
+  {
+    return (_Uty)(uintptr_t)source_ud_;
+  }
   /* Sets trasnport user data when process this event */
-  template <typename _Uty = void*> void transport_ud(_Uty uval)
+  template <typename _Uty = void*>
+  void transport_ud(_Uty uval)
   {
     source_ud_ = (void*)(uintptr_t)uval;
 
@@ -904,8 +926,8 @@ public:
   };
 
   /*
-  ** Summary: init global state with custom print function, you must ensure thread safe of it.
-  ** @remark:
+  ** summary: init global state with custom print function, you must ensure thread safe of it.
+  ** remark:
   **   a. this function is not required, if you don't want print init log to custom console.
   **   b. this function only works once
   **   c. you should call once before call any 'io_servic::start'
@@ -925,9 +947,18 @@ public:
   YASIO__DECL ~io_service();
 
   YASIO__DECL void start(event_cb_t cb);
+  /* summary: stop the io_service
+  **
+  ** remark:
+  ** a. IF caller thread isn't service worker thread, the service state will be IDLE.
+  ** b. IF caller thread is service worker thread, the service state will be STOPPING,
+  **    then you needs to invoke this API again at other thread
+  ** c. Strong recommend invoke this API at your event dispatch thread.
+  */
   YASIO__DECL void stop();
 
   bool is_running() const { return this->state_ == io_service::state::RUNNING; }
+  bool is_stopping() const { return this->state_ == io_service::state::STOPPING; }
 
   // should call at the thread who care about async io
   // events(CONNECT_RESPONSE,CONNECTION_LOST,PACKET), such cocos2d-x opengl or
@@ -952,14 +983,14 @@ public:
   YASIO__DECL void close(int index);
 
   /*
-  ** Summary: Write data to a TCP or connected UDP transport with last peer address
-  ** @retval: < 0: failed
-  ** @params:
+  ** summary: Write data to a TCP or connected UDP transport with last peer address
+  ** retval: < 0: failed
+  ** params:
   **        'thandle': the transport to write, could be tcp/udp/kcp
   **        'buf': the data to write
   **        'len': the data len
   **        'handler': send finish callback, only works for TCP transport
-  ** @remark:
+  ** remark:
   **        + TCP/UDP: Use queue to store user message, flush at io_service thread
   **        + KCP: Use queue provided by kcp internal, flush at io_service thread
   */
@@ -971,8 +1002,8 @@ public:
 
   /*
    ** Summary: Write data to unconnected UDP transport with specified address.
-   ** @retval: < 0: failed
-   ** @remark: This function only for UDP like transport (UDP or KCP)
+   ** retval: < 0: failed
+   ** remark: This function only for UDP like transport (UDP or KCP)
    **        + UDP: Use queue to store user message, flush at io_service thread
    **        + KCP: Use the queue provided by kcp internal, flush at io_service thread
    */
@@ -1007,13 +1038,11 @@ private:
   // Start a async resolve, It's only for internal use
   YASIO__DECL void start_resolve(io_channel*);
 
-  YASIO__DECL void init(const io_hostent* channel_eps /* could be nullptr */, int channel_count);
-  YASIO__DECL void cleanup();
+  YASIO__DECL void initialize(const io_hostent* channel_eps /* could be nullptr */, int channel_count);
+  YASIO__DECL void finalize();
 
+  // Try to dispose thread and other resources, service state will be IDLE when succeed
   YASIO__DECL void handle_stop();
-
-  /* Call by stop_service, wait io_service thread exit properly & do cleanup */
-  YASIO__DECL void join();
 
   YASIO__DECL void open_internal(io_channel*);
 
@@ -1079,19 +1108,18 @@ private:
   // please call this at initialization, don't new channel at runtime
   // dynmaically: because this API is not thread safe.
   YASIO__DECL void create_channels(const io_hostent* eps, int count);
-  // Clear all channels after service exit.
-  YASIO__DECL void clear_channels();   // destroy all channels
-  YASIO__DECL void clear_transports(); // destroy all transports
+  YASIO__DECL void destroy_channels(); // destroy all channels
+  YASIO__DECL void clear_transports(); // clear all transports
   YASIO__DECL bool close_internal(io_channel*);
 
   // shutdown a tcp-connection if possible
   YASIO__DECL bool shutdown_internal(transport_handle_t);
 
   /*
-  ** Summay: Query async resolve state for new endpoint set
-  ** @retval:
+  ** summay: Query async resolve state for new endpoint set
+  ** retval:
   **   YDQS_READY, YDQS_INPRROGRESS, YDQS_FAILED
-  ** @remark: will start a async resolv when the state is: YDQS_DIRTY
+  ** remark: will start a async resolv when the state is: YDQS_DIRTY
   */
   YASIO__DECL u_short query_ares_state(io_channel* ctx);
 
@@ -1102,7 +1130,7 @@ private:
   YASIO__DECL static const char* strerror(int error);
 
   /*
-  ** Summary: For udp-server only, make dgram handle to communicate with client
+  ** summary: For udp-server only, make dgram handle to communicate with client
   */
   YASIO__DECL transport_handle_t do_dgram_accept(io_channel*, const ip::endpoint& peer, int& error);
 
@@ -1181,6 +1209,10 @@ private:
 #if defined(YASIO_SSL_BACKEND)
     // The full path cacert(.pem) file for ssl verifaction
     std::string cafile_;
+#endif
+
+#if defined(YASIO_HAVE_CARES)
+    std::string name_servers_;
 #endif
   } options_;
 
