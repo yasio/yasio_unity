@@ -1,4 +1,4 @@
-# OpenNSM2 - The unity c# wrapper of yasio
+# yasio_unity - The unity c# wrapper of yasio
 
 ## Repo Introduction
 - NSM(NetworkServiceManager)
