@@ -266,7 +266,7 @@ public:
       if (rbracket && rbracket[1] == ':')
       {
         auto zone_value = parse_in6_zone(ip, addr_part, sizeof(addr_part), rbracket);
-        as_in6(ip, atoi(rbracket + 2), zone_value);
+        as_in6(ip, static_cast<u_short>(atoi(rbracket + 2)), zone_value);
       }
     }
     else
@@ -277,7 +277,7 @@ public:
         auto n = colon - str_ep;
         memcpy(addr_part, str_ep, n);
         addr_part[n] = '\0';
-        as_in4(addr_part, atoi(colon + 1));
+        as_in4(addr_part, static_cast<u_short>(atoi(colon + 1)));
       }
     }
     return *this;
@@ -373,7 +373,7 @@ public:
 
   void zeroset() { ::memset(this, 0x0, sizeof(*this)); }
 
-  void af(int v) { sa_.sa_family = v; }
+  void af(int v) { sa_.sa_family = static_cast<u_short>(v); }
   int af() const { return sa_.sa_family; }
 
   void ip(const char* addr)
@@ -1003,7 +1003,7 @@ public:
    ** @params:
    **        non
    **
-   ** @returns: [0] succeed, otherwise, a value of SOCKET_ERROR is returned.
+   ** @returns: > 0 succeed, 0 failed.
    */
   YASIO__DECL unsigned int tcp_rtt() const;
   YASIO__DECL static unsigned int tcp_rtt(socket_native_type s);
