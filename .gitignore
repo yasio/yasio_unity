@@ -16,6 +16,8 @@ build_*
 /[Ll]ogs/
 /[Uu]ser[Ss]ettings/
 
+/NativeLibs/yasio/plugin_*
+
 # MemoryCaptures can get excessive in size.
 # They also could contain extremely sensitive data
 /[Mm]emoryCaptures/
