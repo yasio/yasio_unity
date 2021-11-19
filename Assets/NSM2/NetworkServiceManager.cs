@@ -342,7 +342,7 @@ namespace NSM2
                 case YASIO_NI.YEnums.YEK_CONNECTION_LOST:
                     nsm.BroadcastEventToListeners(NetworkEventType.CONNECTION_LOST, status, channel);
                     nsm._packeter.HandleEvent(NetworkEvent.CONNECTION_LOST, -1, NativeDataView.NullValue, channel);
-                    Debug.LogWarningFormat("[channel:#{0}] The connection of session #{1} is lost, ec={2}!", channel, sid, status);
+                    Debug.LogWarningFormat("[channel:#{0}] The connection of session 0x{1} is lost, ec={2}!", channel, sid.ToString("x"), status);
                     break;
             }
         }
