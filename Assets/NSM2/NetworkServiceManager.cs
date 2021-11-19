@@ -246,14 +246,15 @@ namespace NSM2
         /// 向远端发送数据
         /// </summary>
         /// <param name="bytes"></param>
-        public void SendRaw(byte[] buffer, int length, int channel)
+        public void SendRaw(NativeDataView data, int channel)
         {
             if (channel < _sessions.Length)
             {
                 IntPtr sid = _sessions[channel];
                 if (sid != IntPtr.Zero)
                 {
-                    YASIO_NI.yasio_write(_service, sid, buffer, length);
+                    
+                    YASIO_NI.yasio_write(_service, sid, data.ptr, data.len);
                 }
                 else
                 {
@@ -264,6 +265,14 @@ namespace NSM2
             {
                 Debug.LogFormat("Can't send message to the channel: {0}, the index is overflow, max allow value is:{1}", channel,
                     _sessions.Length);
+            }
+        }
+
+        public unsafe void SendRaw(byte[] data, int channel)
+        {
+            fixed (byte* p = data)
+            {
+                SendRaw(new NativeDataView((IntPtr)p, data.Length), channel);
             }
         }
 
