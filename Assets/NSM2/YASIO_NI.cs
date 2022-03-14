@@ -1,5 +1,5 @@
 //
-// Copyright (c) Bytedance Inc 2021. All right reserved.
+// Copyright (c) Bytedance Inc 2021-2022. All right reserved.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -10,7 +10,7 @@
 // SOFTWARE.
 //
 
-/* Match with yasio-3.37.6+ */
+/* Match with yasio-3.39.3+ */
 using System;
 using System.Runtime.InteropServices;
 
@@ -132,9 +132,12 @@ namespace NSM2
             #endregion
 
             #region Event kind enums, copy from yasio.hpp
-            YEK_CONNECT_RESPONSE = 1,
-            YEK_CONNECTION_LOST,
-            YEK_PACKET,
+            YEK_ON_OPEN   = 1,
+            YEK_ON_CLOSE  = 2,
+            YEK_ON_PACKET = 3,
+            YEK_CONNECT_RESPONSE = YEK_ON_OPEN,   // implicit deprecated alias
+            YEK_CONNECTION_LOST  = YEK_ON_CLOSE,  // implicit deprecated alias
+            YEK_PACKET           = YEK_ON_PACKET, // implicit deprecated alias
             #endregion
 
             #region Channel flags
@@ -241,7 +244,8 @@ namespace NSM2
 
             // Sets channel length field based frame decode function, native C++ ONLY
             // params: index:int, func:decode_len_fn_t*
-            YOPT_C_LFBFD_FN = 101,
+            YOPT_C_UNPACK_FN = 101,
+            YOPT_C_LFBFD_FN  = YOPT_C_UNPACK_FN,
 
             // Sets channel length field based frame decode params
             // params:
@@ -308,6 +312,9 @@ namespace NSM2
             // params: index:int, conv:int
             YOPT_C_KCP_CONV,
 
+            // Whether never perform bswap for length field
+            // params: index:int, no_bswap:int(0)
+            YOPT_C_UNPACK_NO_BSWAP,
             // Change 4-tuple association for io_transport_udp
             // params: transport:transport_handle_t
             // remarks: only works for udp client transport
