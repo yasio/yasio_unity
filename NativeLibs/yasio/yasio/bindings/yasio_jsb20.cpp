@@ -5,7 +5,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2021 HALX99
+Copyright (c) 2012-2022 HALX99
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -77,6 +77,13 @@ public:                                                                         
   }                                                                                                                                                            \
                                                                                                                                                                \
 private:
+
+enum
+{
+  BUFFER_DEFAULT,
+  BUFFER_RAW,
+  BUFFER_FAST,
+};
 
 namespace stimer
 {
@@ -985,23 +992,21 @@ bool js_yasio_io_event_packet(se::State& s)
 
   if (!packet.empty())
   {
-    bool raw  = false;
-    bool copy = false;
+    int buffer_type = yasio_jsb::BUFFER_DEFAULT;
     if (argc >= 1)
-      raw = args[0].toBoolean();
-    if (argc >= 2)
-      copy = args[1].toBoolean();
-    if (!raw)
-      native_ptr_to_seval<yasio::ibstream>(!copy ? new yasio::ibstream(std::move(packet)) : new yasio::ibstream(packet), &s.rval());
-    else
     {
-      se::HandleObject dataObj(se::Object::createArrayBufferObject(packet.data(), packet.size()));
-      s.rval().setObject(dataObj);
-      if (!copy)
-      {
-        packet.clear();
-        packet.shrink_to_fit();
-      }
+      buffer_type = args[0].toInt32();
+    }
+    switch (buffer_type)
+    {
+      case yasio_jsb::BUFFER_RAW:
+        s.rval().setObject(se::HandleObject(se::Object::createArrayBufferObject(packet.data(), packet.size())));
+        break;
+      case yasio_jsb::BUFFER_FAST:
+        native_ptr_to_seval<yasio::ibstream>(new yasio::ibstream(yasio::forward_packet((yasio::packet&&)packet)), &s.rval());
+        break;
+      default:
+        native_ptr_to_seval<yasio::ibstream>(new yasio::fast_ibstream(yasio::forward_packet((yasio::packet&&)packet)), &s.rval());
     }
   }
   else
@@ -1311,7 +1316,7 @@ bool js_yasio_io_service_set_option(se::State& s)
         case YOPT_S_TCP_KEEPALIVE:
           service->set_option(opt, args[1].toInt32(), args[2].toInt32(), args[3].toInt32());
           break;
-        case YOPT_C_LFBFD_PARAMS:
+        case YOPT_C_UNPACK_PARAMS:
           service->set_option(opt, args[1].toInt32(), args[2].toInt32(), args[3].toInt32(), args[4].toInt32(), args[5].toInt32());
           break;
         case YOPT_S_EVENT_CB: {
@@ -1502,7 +1507,8 @@ bool jsb_register_yasio(se::Object* obj)
   YASIO_EXPORT_ENUM(YOPT_S_DNS_QUERIES_TIMEOUT);
   YASIO_EXPORT_ENUM(YOPT_S_TCP_KEEPALIVE);
   YASIO_EXPORT_ENUM(YOPT_S_EVENT_CB);
-  YASIO_EXPORT_ENUM(YOPT_C_LFBFD_PARAMS);
+  YASIO_EXPORT_ENUM(YOPT_C_UNPACK_PARAMS);
+  YASIO_EXPORT_ENUM(YOPT_C_LFBFD_PARAMS); // alias for YOPT_C_UNPACK_PARAMS
   YASIO_EXPORT_ENUM(YOPT_C_LOCAL_HOST);
   YASIO_EXPORT_ENUM(YOPT_C_LOCAL_PORT);
   YASIO_EXPORT_ENUM(YOPT_C_LOCAL_ENDPOINT);
@@ -1528,5 +1534,10 @@ bool jsb_register_yasio(se::Object* obj)
   YASIO_EXPORT_ENUM(SEEK_CUR);
   YASIO_EXPORT_ENUM(SEEK_SET);
   YASIO_EXPORT_ENUM(SEEK_END);
+
+  using namespace yasio_jsb;
+  YASIO_EXPORT_ENUM(BUFFER_DEFAULT);
+  YASIO_EXPORT_ENUM(BUFFER_RAW);
+  YASIO_EXPORT_ENUM(BUFFER_FAST);
   return true;
 }

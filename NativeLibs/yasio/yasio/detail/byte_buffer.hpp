@@ -5,7 +5,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2021 HALX99
+Copyright (c) 2012-2022 HALX99
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -37,6 +37,7 @@ The byte_buffer concepts:
 #include <utility>
 #include <memory>
 #include <iterator>
+#include <limits>
 #include <algorithm>
 #include <type_traits>
 #include <stdexcept>
@@ -128,6 +129,7 @@ public:
       return *(_Mylast - 1);
     throw std::out_of_range("byte_buffer: out of range!");
   }
+  static constexpr size_t max_size() noexcept { return (std::numeric_limits<ptrdiff_t>::max)(); }
   _Elem* begin() noexcept { return _Myfirst; }
   _Elem* end() noexcept { return _Mylast; }
   const _Elem* begin() const noexcept { return _Myfirst; }

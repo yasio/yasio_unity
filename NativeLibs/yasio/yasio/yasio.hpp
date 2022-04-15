@@ -5,7 +5,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2021 HALX99
+Copyright (c) 2012-2022 HALX99
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -175,7 +175,8 @@ enum
 
   // Sets channel length field based frame decode function, native C++ ONLY
   // params: index:int, func:decode_len_fn_t*
-  YOPT_C_LFBFD_FN = 101,
+  YOPT_C_UNPACK_FN = 101,
+  YOPT_C_LFBFD_FN  = YOPT_C_UNPACK_FN,
 
   // Sets channel length field based frame decode params
   // params:
@@ -242,6 +243,10 @@ enum
   // The kcp conv id, must equal in two endpoint from the same connection
   // params: index:int, conv:int
   YOPT_C_KCP_CONV,
+
+  // Whether never perform bswap for length field
+  // params: index:int, no_bswap:int(0)
+  YOPT_C_UNPACK_NO_BSWAP,
 
   // Change 4-tuple association for io_transport_udp
   // params: transport:transport_handle_t
@@ -589,6 +594,7 @@ private:
     int length_field_length    = 4;               // 1,2,3,4
     int length_adjustment      = 0;
     int initial_bytes_to_strip = 0;
+    int no_bswap               = 0;
   } uparams_;
   decode_len_fn_t decode_len_;
 

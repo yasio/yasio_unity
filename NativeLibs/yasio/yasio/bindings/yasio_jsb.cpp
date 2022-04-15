@@ -5,7 +5,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2021 HALX99
+Copyright (c) 2012-2022 HALX99
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -62,6 +62,13 @@ public:                                                                         
   }                                                                                                                                                            \
                                                                                                                                                                \
 private:
+
+enum
+{
+  BUFFER_DEFAULT,
+  BUFFER_RAW,
+  BUFFER_FAST,
+};
 
 namespace stimer
 {
@@ -1279,25 +1286,17 @@ bool js_yasio_io_event_packet(JSContext* ctx, uint32_t argc, jsval* vp)
 
   if (!packet.empty())
   {
-    bool raw  = false;
-    bool copy = false;
-    if (argc >= 1)
-      raw = args[0].toBoolean();
-    if (argc >= 1)
-      copy = args[1].toBoolean();
-    if (!raw)
+    int buffer_type = argc >= 1 ? args[0].toInt32() : yasio_jsb::BUFFER_DEFAULT;
+    switch (buffer_type)
     {
-      std::unique_ptr<yasio::ibstream> ibs(!copy ? new yasio::ibstream(std::move(packet)) : new yasio::ibstream(packet));
-      args.rval().set(jsb_yasio_to_jsval<yasio::ibstream>(ctx, std::move(ibs)));
-    }
-    else
-    {
-      args.rval().set(yasio_jsb::createJSArrayBuffer(ctx, packet.data(), packet.size()));
-      if (!copy)
-      {
-        packet.clear();
-        packet.shrink_to_fit();
-      }
+      case lyasio::BUFFER_RAW:
+        args.rval().set(yasio_jsb::createJSArrayBuffer(ctx, packet.data(), packet.size()));
+        break;
+      case lyasio::BUFFER_FAST:
+        args.rval().set(jsb_yasio_to_jsval<yasio::fast_ibstream>(ctx, cxx17::make_unique<yasio::fast_ibstream>(yasio::forward_packet((yasio::packet_t&&)packet))));
+        break;
+      default:
+        args.rval().set(jsb_yasio_to_jsval<yasio::ibstream>(ctx, cxx17::make_unique<yasio::ibstream>(yasio::forward_packet((yasio::packet_t&&)packet))));
     }
   }
   else
@@ -1677,7 +1676,7 @@ bool js_yasio_io_service_set_option(JSContext* ctx, uint32_t argc, jsval* vp)
         case YOPT_S_TCP_KEEPALIVE:
           service->set_option(opt, args[1].toInt32(), args[2].toInt32(), args[3].toInt32());
           break;
-        case YOPT_C_LFBFD_PARAMS:
+        case YOPT_C_UNPACK_PARAMS:
           service->set_option(opt, args[1].toInt32(), args[2].toInt32(), args[3].toInt32(), args[4].toInt32(), args[5].toInt32());
           break;
         case YOPT_S_EVENT_CB: {
@@ -1893,7 +1892,8 @@ void jsb_register_yasio(JSContext* ctx, JS::HandleObject global)
   YASIO_EXPORT_ENUM(YOPT_S_DNS_QUERIES_TIMEOUT);
   YASIO_EXPORT_ENUM(YOPT_S_TCP_KEEPALIVE);
   YASIO_EXPORT_ENUM(YOPT_S_EVENT_CB);
-  YASIO_EXPORT_ENUM(YOPT_C_LFBFD_PARAMS);
+  YASIO_EXPORT_ENUM(YOPT_C_UNPACK_PARAMS);
+  YASIO_EXPORT_ENUM(YOPT_C_LFBFD_PARAMS); // alias for YOPT_C_UNPACK_PARAMS
   YASIO_EXPORT_ENUM(YOPT_C_LOCAL_HOST);
   YASIO_EXPORT_ENUM(YOPT_C_LOCAL_PORT);
   YASIO_EXPORT_ENUM(YOPT_C_LOCAL_ENDPOINT);
@@ -1915,4 +1915,9 @@ void jsb_register_yasio(JSContext* ctx, JS::HandleObject global)
   YASIO_EXPORT_ENUM(SEEK_CUR);
   YASIO_EXPORT_ENUM(SEEK_SET);
   YASIO_EXPORT_ENUM(SEEK_END);
+
+  using namespace yasio_jsb;
+  YASIO_EXPORT_ENUM(BUFFER_DEFAULT);
+  YASIO_EXPORT_ENUM(BUFFER_RAW);
+  YASIO_EXPORT_ENUM(BUFFER_FAST);
 }
