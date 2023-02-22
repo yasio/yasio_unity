@@ -50,7 +50,7 @@ endif()
 
 #option ( LUA_COMPAT_MODULE "compat module" ON)
 option(YASIO_BUILD_WITH_CARES "Build yasio with c-ares support" OFF)
-option(YASIO_BUILD_WITH_KCP "Build yasio with kcp support" OFF)
+option(YASIO_BUILD_WITH_KCP "Build yasio with kcp support" ON)
 option(YASIO_BUILD_WITH_LUA "Build yasio with lua support" OFF)
 option(YASIO_BUILD_WITH_CCLUA "Build yasio with cclua support" OFF)
 option(YASIO_BUILD_TESTS "Build yasio tests and examples" OFF)  
@@ -124,7 +124,7 @@ set (YASIO_CORE
 
 if (YASIO_BUILD_WITH_KCP)
   set(YASIO_CORE ${YASIO_CORE} 
-    ${CMAKE_SOURCE_DIR}/external/kcp/ikcp.c
+    ${CMAKE_SOURCE_DIR}/kcp/ikcp.c
   )
 endif()
 

@@ -25,19 +25,21 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-package org.yasio;
+#ifndef YASIO__MEMORY
+#define YASIO__MEMORY
+#include <memory>
 
-import android.content.Context;
+#include "yasio/compiler/feature_test.hpp"
 
-public final class AppGlobals {
-    private static Context sApplicationContext = null;
-
-    public static void init(Context ctx) {
-        sApplicationContext = ctx.getApplicationContext();
-    }
-
-    @SuppressWarnings("unused")
-    public static Context getApplicationContext() {
-        return sApplicationContext;
-    }
+/// The make_unique workaround on c++11
+#if !YASIO__HAS_CXX14
+namespace cxx14
+{
+template <typename _Ty, typename... _Args> std::unique_ptr<_Ty> make_unique(_Args&&... args)
+{
+  return std::unique_ptr<_Ty>(new _Ty(std::forward<_Args>(args)...));
 }
+} // namespace cxx14
+#endif
+
+#endif

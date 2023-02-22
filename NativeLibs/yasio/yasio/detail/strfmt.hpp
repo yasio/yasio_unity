@@ -5,7 +5,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2022 HALX99
+Copyright (c) 2012-2023 HALX99
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -144,8 +144,8 @@ inline std::basic_string<_Elem, _Traits, _Alloc> basic_strfmt(size_t n, const _E
   return buf;
 }
 
-static auto constexpr strfmt = basic_strfmt<char>;
-static auto constexpr wcsfmt = basic_strfmt<wchar_t>;
+static auto YASIO__CONSTEXPR strfmt = basic_strfmt<char>;
+static auto YASIO__CONSTEXPR wcsfmt = basic_strfmt<wchar_t>;
 
 } // namespace yasio
 

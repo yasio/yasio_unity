@@ -5,7 +5,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2022 HALX99
+Copyright (c) 2012-2023 HALX99
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -202,7 +202,7 @@ template <> struct convert_traits<host_convert_tag> {
   static int fromint(int value, int) { return value; }
 };
 } // namespace endian
-#if !YASIO__HAS_NS_INLINE
+#if !YASIO__HAS_CXX11
 using namespace yasio::endian;
 #endif
 

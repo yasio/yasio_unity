@@ -1,11 +1,6 @@
-//////////////////////////////////////////////////////////////////////////////////////////
-// A multi-platform support c++11 library with focus on asynchronous socket I/O for any 
-// client application.
-//////////////////////////////////////////////////////////////////////////////////////////
-/*
-The MIT License (MIT)
+MIT License
 
-Copyright (c) 2012-2022 HALX99
+Copyright (c) 2017 Lin Wei (skywind3000 at gmail.com)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,22 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-*/
-#ifndef YASIO__MEMORY
-#define YASIO__MEMORY
-#include <memory>
-
-#include "yasio/compiler/feature_test.hpp"
-
-/// The make_unique workaround on c++11
-#if !YASIO__HAS_CXX14
-namespace cxx14
-{
-template <typename _Ty, typename... _Args> std::unique_ptr<_Ty> make_unique(_Args&&... args)
-{
-  return std::unique_ptr<_Ty>(new _Ty(std::forward<_Args>(args)...));
-}
-} // namespace cxx14
-#endif
-
-#endif

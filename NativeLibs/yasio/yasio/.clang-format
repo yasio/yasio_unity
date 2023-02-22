@@ -52,3 +52,5 @@ KeepEmptyLinesAtTheStartOfBlocks: true
 IndentPPDirectives: AfterHash
 
 AlwaysBreakTemplateDeclarations: Yes
+
+AlignEscapedNewlines: Left
