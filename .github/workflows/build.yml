@@ -10,7 +10,7 @@ jobs:
   android:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install NDK
         run: |
           cd ~
@@ -26,20 +26,20 @@ jobs:
           ./build_android.sh
           ./build_android_arm64.sh
       - name: Upload
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: ./NativeLibs/yasio/plugin_android/**/*
           name: plugin_android
   linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Build
         run: |
           cd NativeLibs/yasio
           ./build_linux.sh
       - name: Upload
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: ./NativeLibs/yasio/plugin_linux/**/*
           name: plugin_linux
@@ -47,13 +47,16 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '13.4'
       - name: Build
         run: |
           cd NativeLibs/yasio
           ./build_ios.sh
       - name: Upload
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: ./NativeLibs/yasio/plugin_ios/**/*
           name: plugin_ios
@@ -68,7 +71,7 @@ jobs:
           cd NativeLibs/yasio
           ./build_osx.sh
       - name: Upload
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: ./NativeLibs/yasio/plugin_osx/**/*
           name: plugin_osx
@@ -77,10 +80,10 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       
       - name: Insatll MSVC
-        uses: microsoft/setup-msbuild@v1.0.2
+        uses: microsoft/setup-msbuild@v1.3
       
       - name: Build
         run: |
@@ -88,7 +91,7 @@ jobs:
           .\build_win.bat
           .\build_uwp.bat
       - name: Upload
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: ./NativeLibs/yasio/plugin_win/**/*
           name: plugin_win
@@ -97,6 +100,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download a Build Artifact
-        uses: actions/download-artifact@v2.0.9
+        uses: actions/download-artifact@v3
       - name: Display structure of downloaded files
         run: ls -R
