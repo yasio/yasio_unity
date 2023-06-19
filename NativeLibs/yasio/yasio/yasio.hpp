@@ -48,7 +48,7 @@ SOFTWARE.
 #include "yasio/detail/utils.hpp"
 #include "yasio/detail/errc.hpp"
 #include "yasio/detail/byte_buffer.hpp"
-#include "yasio/detail/fd_set_adapter.hpp"
+#include "yasio/detail/io_watcher.hpp"
 #include "yasio/stl/memory.hpp"
 #include "yasio/stl/string_view.hpp"
 #include "yasio/xxsocket.hpp"
@@ -174,17 +174,13 @@ enum
   //  b. IPv6 addresses with ports require square brackets [fe80::1%lo0]:53
   YOPT_S_DNS_LIST,
 
-  // Set whether forward event without GC alloc
-  // params: forward: int(0)
-  // reamrks:
-  //   when forward event enabled, the option YOPT_S_DEFERRED_EVENT was ignored
-  YOPT_S_FORWARD_EVENT,
-
   // Set ssl server cert and private key file
   // params:
   //   crtfile: const char*
   //   keyfile: const char*
   YOPT_S_SSL_CERT,
+
+  YOPT_S_FORWARD_PACKET,
 
   // Sets channel length field based frame decode function, native C++ ONLY
   // params: index:int, func:decode_len_fn_t*
@@ -256,6 +252,26 @@ enum
   // The kcp conv id, must equal in two endpoint from the same connection
   // params: index:int, conv:int
   YOPT_C_KCP_CONV,
+
+  // The setting for kcp nodelay config.
+  // refer to:https://github.com/skywind3000/kcp/wiki/KCP-Basic-Usage
+  // params: index:int, nodelay:int, interval:int, resend:int, nc:int.
+  YOPT_C_KCP_NODELAY,
+
+  // The setting for kcp window size config.
+  // refer to:https://github.com/skywind3000/kcp/wiki/KCP-Basic-Usage
+  // params: index:int, sndWnd:int, rcvwnd:int
+  YOPT_C_KCP_WINDOW_SIZE,
+
+  // The setting for kcp MTU config.
+  // refer to:https://github.com/skywind3000/kcp/wiki/KCP-Basic-Usage
+  // params: index:int,mtu:int
+  YOPT_C_KCP_MTU,
+
+  // The setting for kcp min RTO config.
+  // refer to:https://github.com/skywind3000/kcp/wiki/KCP-Basic-Usage
+  // params: index:int,minRTO:int
+  YOPT_C_KCP_RTO_MIN,
 
   // Whether never perform bswap for length field
   // params: index:int, no_bswap:int(0)
@@ -434,7 +450,11 @@ public:
   bool expired() const { return wait_duration().count() <= 0; }
 
   // Gets wait duration of timer.
-  std::chrono::microseconds wait_duration() const { return std::chrono::duration_cast<std::chrono::microseconds>(this->expire_time_ - steady_clock_t::now()); }
+  std::chrono::microseconds wait_duration() const { return this->wait_duration(steady_clock_t::now()); }
+  std::chrono::microseconds wait_duration(const std::chrono::time_point<steady_clock_t>& now_time) const
+  {
+    return std::chrono::duration_cast<std::chrono::microseconds>(this->expire_time_ - now_time);
+  }
 
   std::chrono::microseconds duration_                  = {};
   std::chrono::time_point<steady_clock_t> expire_time_ = {};
@@ -616,7 +636,19 @@ private:
   unsigned int connect_id_ = 0;
 
 #if defined(YASIO_HAVE_KCP)
-  int kcp_conv_ = 0;
+  int kcp_conv_     = 0;
+
+  int kcp_nodelay_  = 1;
+  int kcp_interval_ = 5000;
+  int kcp_resend_   = 2;
+  int kcp_ncwnd_    = 1;
+
+  int kcp_sndwnd_   = 32;
+  int kcp_rcvwnd_   = 128;
+
+  int kcp_mtu_      = 1400;
+  //kcp fast model the RTO min is 30.
+  int kcp_minrto_   = 30;
 #endif
 };
 
@@ -1061,8 +1093,11 @@ private:
   }
   void sort_timers()
   {
-    std::sort(this->timer_queue_.begin(), this->timer_queue_.end(),
-              [](const timer_impl_t& lhs, const timer_impl_t& rhs) { return lhs.first->wait_duration() > rhs.first->wait_duration(); });
+    // Must ensure time now stable, otherwise will cause std::sort pass invalid iterator to sort callback
+    const auto now_time = steady_clock_t::now();
+    std::sort(this->timer_queue_.begin(), this->timer_queue_.end(), [&now_time](const timer_impl_t& lhs, const timer_impl_t& rhs) {
+      return lhs.first->wait_duration(now_time) > rhs.first->wait_duration(now_time);
+    });
   }
 
   // Start a async domain name query
@@ -1076,17 +1111,17 @@ private:
 
   YASIO__DECL bool open_internal(io_channel*);
 
-  YASIO__DECL void process_transports(fd_set_adapter& fd_set);
-  YASIO__DECL void process_channels(fd_set_adapter& fd_set);
+  YASIO__DECL void process_transports();
+  YASIO__DECL void process_channels();
   YASIO__DECL void process_timers();
 
-  YASIO__DECL void interrupt();
+  YASIO__DECL void wakeup();
 
   YASIO__DECL highp_time_t get_timeout(highp_time_t usec);
 
   YASIO__DECL int do_resolve(io_channel* ctx);
   YASIO__DECL void do_connect(io_channel*);
-  YASIO__DECL void do_connect_completion(io_channel*, fd_set_adapter& fd_set);
+  YASIO__DECL void do_connect_completion(io_channel*);
 
 #if defined(YASIO_SSL_BACKEND)
   YASIO__DECL SSL_CTX* init_ssl_context(ssl_role role);
@@ -1094,11 +1129,12 @@ private:
 #endif
 
 #if defined(YASIO_HAVE_CARES)
-  YASIO__DECL static void ares_getaddrinfo_cb(void* arg, int status, int timeouts, ares_addrinfo* answerlist);
+  YASIO__DECL static void ares_getaddrinfo_cb(void* data, int status, int timeouts, ares_addrinfo* answerlist);
+  YASIO__DECL static void ares_sock_state_cb(void* data, socket_native_type socket_fd, int readable, int writable);
   YASIO__DECL void ares_work_started();
   YASIO__DECL void ares_work_finished();
-  YASIO__DECL int do_ares_fds(socket_native_type* socks, fd_set_adapter& fd_set, timeval& waitd_tv);
-  YASIO__DECL void do_ares_process_fds(socket_native_type* socks, int count, fd_set_adapter& fd_set);
+  YASIO__DECL int ares_get_fds(socket_native_type* socks, highp_time_t& waitd_usec);
+  YASIO__DECL void do_ares_process_fds(socket_native_type* socks, int count);
   YASIO__DECL void recreate_ares_channel();
   YASIO__DECL void config_ares_name_servers();
   YASIO__DECL void destroy_ares_channel();
@@ -1112,13 +1148,10 @@ private:
   YASIO__DECL transport_handle_t allocate_transport(io_channel*, xxsocket_ptr&&);
   YASIO__DECL void deallocate_transport(transport_handle_t);
 
-  YASIO__DECL void register_descriptor(const socket_native_type fd, int events);
-  YASIO__DECL void deregister_descriptor(const socket_native_type fd, int events);
-
   // The major non-blocking event-loop
   YASIO__DECL void run(void);
 
-  YASIO__DECL bool do_read(transport_handle_t, fd_set_adapter& fd_set);
+  YASIO__DECL bool do_read(transport_handle_t);
   bool do_write(transport_handle_t transport) { return transport->do_write(this->wait_duration_); }
   YASIO__DECL void unpack(transport_handle_t, int bytes_expected, int bytes_transferred, int bytes_to_strip);
 
@@ -1131,7 +1164,7 @@ private:
   inline void fire_event(_Types&&... args)
   {
     auto event = cxx14::make_unique<io_event>(std::forward<_Types>(args)...);
-    if (options_.deferred_event_ && !options_.forward_event_)
+    if (options_.deferred_event_)
     {
       if (options_.on_defer_event_ && !options_.on_defer_event_(event))
         return;
@@ -1139,6 +1172,11 @@ private:
     }
     else
       options_.on_event_(std::move(event));
+  }
+  template <typename... _Types>
+  inline void forward_packet(_Types&&... args)
+  {
+    options_.on_event_(cxx14::make_unique<io_event>(std::forward<_Types>(args)...));
   }
 
   // new/delete client socket connection channel
@@ -1151,7 +1189,7 @@ private:
 
   // supporting server
   YASIO__DECL void do_accept(io_channel*);
-  YASIO__DECL void do_accept_completion(io_channel*, fd_set_adapter& fd_set);
+  YASIO__DECL void do_accept_completion(io_channel*);
 
   /*
   ** summary: For udp-server only, make dgram handle to communicate with client
@@ -1185,14 +1223,14 @@ private:
   // select interrupter
   select_interrupter interrupter_;
 
-  // timer support timer_pair
+  // timer support timer_pair, back is earliest expire timer
   std::vector<timer_impl_t> timer_queue_;
   std::recursive_mutex timer_queue_mtx_;
 
   // the next wait duration for socket.select
   highp_time_t wait_duration_;
 
-  fd_set_adapter fd_set_;
+  io_watcher io_watcher_;
 
   // options
   struct __unnamed_options {
@@ -1206,7 +1244,7 @@ private:
     bool deferred_event_ = true;
     defer_event_cb_t on_defer_event_;
 
-    bool forward_event_ = false; // since v3.39.7
+    bool forward_packet_ = false; // since v3.39.8
 
     // tcp keepalive settings
     struct __unnamed01 {
