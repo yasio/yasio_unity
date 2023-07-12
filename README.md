@@ -2,9 +2,8 @@
 
 ## Repo Introduction
 - NSM(NetworkServiceManager)
-- Depends on next release of yasio
-- Plugins buld with vs2019, if can't load, please install the redist: https://dl.x-studio.net/#vs2019-redists
-- If you wan't `non-stripped` android so, please download via https://github.com/yasio/yasio_unity/actions 
+- Plugins buld with vs2022, if can't load, please install the redist: https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170
+- If you wan't `non-stripped` android so, please download via https://github.com/yasio/yasio_unity/actions
   - `Plugins/Android/normal` are `non-stripped` so
   - `Plugins/Android/libs` are `strippped` so
 
