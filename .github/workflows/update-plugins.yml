@@ -1,0 +1,54 @@
+name: update-plugins
+on:
+  workflow_dispatch:
+    # Inputs the workflow accepts.
+    inputs:
+      commit_changes:
+        # test only
+        description: 'Commit plugin changes'
+        # Default value if no value is explicitly provided
+        default: 'true'
+        # Input has to be provided for the workflow to run
+        required: false
+      
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "greet"
+  update-plugins:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+
+    - uses: actions/checkout@v3
+    
+    - name: Download artifacts from workflow build
+      uses: dawidd6/action-download-artifact@v2
+      with:
+        # Optional, GitHub token
+        github_token: ${{secrets.GITHUB_TOKEN}}
+        # Required, workflow file name or ID
+        workflow: build.yml
+        workflow_conclusion: success
+    - name: Copy plugins files
+      run: |
+        ls -R plugin_android
+        ls -R plugin_ios
+        ls -R plugin_linux
+        ls -R plugin_osx
+        cp -rf NativeLibs/yasio/plugin_android/Plugins/* ./Assets/Plugins/
+        cp -rf NativeLibs/yasio/plugin_ios/Plugins/* ./Assets/Plugins/
+        cp -rf NativeLibs/yasio/plugin_linux/Plugins/* ./Assets/Plugins/
+        cp -rf NativeLibs/yasio/plugin_osx/Plugins/* ./Assets/Plugins/
+    - name: Commit plugin changes
+      if: ${{ github.event.inputs.commit_changes == 'true' }}
+      uses: EndBug/add-and-commit@v9
+      with:
+        committer_name: GitHub Actions
+        committer_email: 41898282+github-actions[bot]@users.noreply.github.com
+        message: 'Committing plugin changes'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+        
