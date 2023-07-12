@@ -32,7 +32,6 @@ SOFTWARE.
 #include <array>
 #include <string.h>
 #include "yasio/yasio.hpp"
-#include "yasio/obstream.hpp"
 
 #if defined(_WINDLL)
 #  define YASIO_NI_API __declspec(dllexport)
@@ -77,13 +76,23 @@ YASIO_NI_API void yasio_init_globals(void(YASIO_INTEROP_DECL* pfn)(int level, co
   io_service::init_globals(custom_print);
 }
 YASIO_NI_API void yasio_cleanup_globals() { io_service::cleanup_globals(); }
-YASIO_NI_API void* yasio_create_service(int channel_count, void(YASIO_INTEROP_DECL* event_cb)(int kind, int status, int cidx, void* t, void* opaque))
+
+struct yasio_event_data {
+    int kind;
+    int status;
+    int channel;
+    void* session; // transport
+    void* packet;
+    void* user; // event source
+};
+YASIO_NI_API void* yasio_create_service(int channel_count, void(YASIO_INTEROP_DECL* event_cb)(yasio_event_data* event), void* user)
 {
   assert(!!event_cb);
   io_service* service = new io_service(channel_count);
   service->start([=](event_ptr e) {
     auto& pkt = e->packet();
-    event_cb(e->kind(), e->status(), e->cindex(), e->transport(), !is_packet_empty(pkt) ? &pkt : nullptr);
+    yasio_event_data event{e->kind(), e->status(), e->cindex(), e->transport(), !is_packet_empty(pkt) ? &pkt : nullptr, user};
+    event_cb(&event);
   });
   return service;
 }
@@ -140,11 +149,12 @@ YASIO_NI_API void yasio_set_option(void* service_ptr, int opt, const char* pszAr
   // process one arg
   switch (opt)
   {
-    case YOPT_C_DISABLE_MCAST:
+    case YOPT_S_NO_DISPATCH:
     case YOPT_S_CONNECT_TIMEOUT:
     case YOPT_S_DNS_CACHE_TIMEOUT:
     case YOPT_S_DNS_QUERIES_TIMEOUT:
     case YOPT_S_DNS_DIRTY:
+    case YOPT_C_DISABLE_MCAST:
       service->set_option(opt, atoi(pszArgs));
       return;
   }
@@ -227,6 +237,18 @@ YASIO_NI_API int yasio_write(void* service_ptr, void* thandle, const unsigned ch
   auto service = reinterpret_cast<io_service*>(service_ptr);
   if (service)
     return service->write(reinterpret_cast<transport_handle_t>(thandle), yasio::sbyte_buffer(bytes, bytes + len, std::true_type{}));
+  return -1;
+}
+YASIO_NI_API int yasio_forward(void* service_ptr, void* thandle, void* bufferHandle, const unsigned char*(YASIO_INTEROP_DECL* pfnLockBuffer)(void* bufferHandle, int* bufferDataLen), void(YASIO_INTEROP_DECL* pfnUnlockBuffer)(void* bufferHandle))
+{
+  auto service = reinterpret_cast<io_service*>(service_ptr);
+  if (service) {
+    int len = 0;
+    auto bytes = pfnLockBuffer(bufferHandle, &len);
+    return service->forward(reinterpret_cast<transport_handle_t>(thandle), bytes, len, [bufferHandle,pfnUnlockBuffer](int,size_t){
+      pfnUnlockBuffer(bufferHandle);
+    });
+  }
   return -1;
 }
 YASIO_NI_API int yasio_write_ob(void* service_ptr, void* thandle, void* obs_ptr)

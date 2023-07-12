@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "com.bytedance.napi": "file:../ExternalTools/com.bytedance.napi",
+    "com.bytedance.napi": "file:../LocalPackages/com.bytedance.napi",
     "com.unity.2d.animation": "3.2.3",
     "com.unity.2d.pixel-perfect": "2.0.4",
     "com.unity.2d.psdimporter": "2.1.4",

@@ -10,7 +10,7 @@
 // SOFTWARE.
 //
 
-/* Match with yasio-3.39.3+ */
+/* Match with yasio-4.0.x+ */
 using System;
 using System.Runtime.InteropServices;
 
@@ -23,8 +23,21 @@ namespace NSM2
 #else
         public const string LIBNAME = "yasio";
 #endif
+        // match with yasio/binding/yasio_ni.cpp: struct yasio_event_data
+        [StructLayout(LayoutKind.Sequential)]
+        public unsafe struct EventData
+        {
+            public int kind;
+            public int status;
+            public int channel;
+            public IntPtr session; // transport
+            public IntPtr packet;
+            public IntPtr user; // the user data
 
-        public delegate void YNIEventDelegate(int kind, int status, int cidx, IntPtr t, IntPtr opaque);
+            public static readonly int cbSize = sizeof(EventData);
+        }
+
+        public delegate void YNIEventDelegate(ref EventData eventData);
         public delegate int YNIResolvDelegate(string host, IntPtr sbuf);
         public delegate void YNIPrintDelegate(int level, string msg);
 
@@ -39,7 +52,11 @@ namespace NSM2
         /// <param name="d"></param>
         /// <returns></returns>
         [DllImport(LIBNAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr yasio_create_service(int channel_count, YNIEventDelegate d);
+        public static extern IntPtr yasio_create_service(int channel_count, YNIEventDelegate d, IntPtr user);
+        public static IntPtr yasio_create_service(int channel_count, YNIEventDelegate d)
+        {
+            return yasio_create_service(channel_count, d, IntPtr.Zero);
+        }
 
         /// <summary>
         /// Destroy the low level socket io service
@@ -114,7 +131,7 @@ namespace NSM2
         /// The yasio constants
         /// </summary>
         public enum YEnums {
-#region Channel mask enums, copy from yasio.hpp
+            #region Channel mask enums, copy from yasio/io_service.hpp
             YCM_CLIENT = 1,
             YCM_SERVER = 1 << 1,
             YCM_TCP = 1 << 2,
@@ -128,16 +145,17 @@ namespace NSM2
             YCK_UDP_SERVER = YCM_UDP | YCM_SERVER,
             YCK_KCP_CLIENT = YCM_KCP | YCM_CLIENT | YCM_UDP,
             YCK_KCP_SERVER = YCM_KCP | YCM_SERVER | YCM_UDP,
-            YCK_SSL_CLIENT = YCM_SSL | YCM_CLIENT | YCM_TCP,
+            YCK_SSL_CLIENT = YCK_TCP_CLIENT | YCM_SSL,
+            YCK_SSL_SERVER = YCK_TCP_SERVER | YCM_SSL,
             #endregion
 
             #region Event kind enums, copy from yasio.hpp
-            YEK_ON_OPEN   = 1,
-            YEK_ON_CLOSE  = 2,
-            YEK_ON_PACKET = 3,
+            YEK_ON_OPEN = 1,
+            YEK_ON_CLOSE,
+            YEK_ON_PACKET,
             YEK_CONNECT_RESPONSE = YEK_ON_OPEN,   // implicit deprecated alias
-            YEK_CONNECTION_LOST  = YEK_ON_CLOSE,  // implicit deprecated alias
-            YEK_PACKET           = YEK_ON_PACKET, // implicit deprecated alias
+            YEK_CONNECTION_LOST = YEK_ON_CLOSE,  // implicit deprecated alias
+            YEK_PACKET = YEK_ON_PACKET, // implicit deprecated alias
             #endregion
 
             #region Channel flags
@@ -151,9 +169,12 @@ namespace NSM2
             #endregion
 
             #region All supported options by native, copy from yasio.hpp
-            // Set whether deferred dispatch event.
-            // params: deferred_event:int(1)
-            YOPT_S_DEFERRED_EVENT = 1,
+            // Set whether disable internal dispatch, if yes
+            // user must invoke dispatch on thread which care about
+            // network events, it's useful for game engine update ui
+            // when recv network events.
+            // params: no_dispatch:int(0)
+            YOPT_S_NO_DISPATCH = 1,
 
             // Set custom resolve function, native C++ ONLY.
             // params: func:resolv_fn_t*
@@ -175,7 +196,7 @@ namespace NSM2
             // remarks: this callback will be invoke at io_service::dispatch caller thread
             YOPT_S_EVENT_CB,
 
-            // Sets callback before defer dispatch event.
+            // Sets callback before enque event to defer queue.
             // params: func:defer_event_cb_t*
             // remarks: this callback invoke at io_service thread
             YOPT_S_DEFER_EVENT_CB,
@@ -242,10 +263,22 @@ namespace NSM2
             //  b. IPv6 addresses with ports require square brackets [fe80::1%lo0]:53
             YOPT_S_DNS_LIST,
 
+            // Set ssl server cert and private key file
+            // params:
+            //   crtfile: const char*
+            //   keyfile: const char*
+            YOPT_S_SSL_CERT,
+
+            // Set whether forward packet without GC alloc
+            // params: forward: int(0)
+            // reamrks:
+            //   when forward packet enabled, the packet will always dispach when recv data from OS kernel immediately
+            YOPT_S_FORWARD_PACKET,
+
             // Sets channel length field based frame decode function, native C++ ONLY
             // params: index:int, func:decode_len_fn_t*
             YOPT_C_UNPACK_FN = 101,
-            YOPT_C_LFBFD_FN  = YOPT_C_UNPACK_FN,
+            YOPT_C_LFBFD_FN = YOPT_C_UNPACK_FN,
 
             // Sets channel length field based frame decode params
             // params:
@@ -297,8 +330,9 @@ namespace NSM2
             // remarks:
             //   a. On BSD-like(APPLE, etc...) system: ipv6 addr must be "::1%lo0" or "::%en0"
             YOPT_C_MCAST_IF,
+
             // Enable channel multicast mode
-            // params: index:int, multi_addr:const char*, loopback:int
+            // params: index:int, multi_addr:const char*, loopback:int,
             // remarks:
             //   a. On BSD-like(APPLE, etc...) system: ipv6 addr must be: "ff02::1%lo0" or "ff02::1%en0"
             // refer to: https://www.tldp.org/HOWTO/Multicast-HOWTO-2.html
@@ -312,9 +346,30 @@ namespace NSM2
             // params: index:int, conv:int
             YOPT_C_KCP_CONV,
 
+            // The setting for kcp nodelay config.
+            // refer to:https://github.com/skywind3000/kcp/wiki/KCP-Basic-Usage
+            // params: index:int, nodelay:int, interval:int, resend:int, nc:int.
+            YOPT_C_KCP_NODELAY,
+
+            // The setting for kcp window size config.
+            // refer to:https://github.com/skywind3000/kcp/wiki/KCP-Basic-Usage
+            // params: index:int, sndWnd:int, rcvwnd:int
+            YOPT_C_KCP_WINDOW_SIZE,
+
+            // The setting for kcp MTU config.
+            // refer to:https://github.com/skywind3000/kcp/wiki/KCP-Basic-Usage
+            // params: index:int,mtu:int
+            YOPT_C_KCP_MTU,
+
+            // The setting for kcp min RTO config.
+            // refer to:https://github.com/skywind3000/kcp/wiki/KCP-Basic-Usage
+            // params: index:int,minRTO:int
+            YOPT_C_KCP_RTO_MIN,
+
             // Whether never perform bswap for length field
             // params: index:int, no_bswap:int(0)
             YOPT_C_UNPACK_NO_BSWAP,
+
             // Change 4-tuple association for io_transport_udp
             // params: transport:transport_handle_t
             // remarks: only works for udp client transport
@@ -330,6 +385,7 @@ namespace NSM2
             YOPT_B_SOCKOPT = 201,
             #endregion
         };
+
 
         unsafe public static string DumpHex(IntPtr buf, int len, string prefix = "")
         {

@@ -25,8 +25,6 @@ SOFTWARE.
 #  define LUA_LIB
 #endif
 
-#include "yasio/ibstream.hpp"
-#include "yasio/obstream.hpp"
 #include "yasio/yasio.hpp"
 #include "yasio/bindings/lyasio.hpp"
 using namespace yasio;
@@ -111,7 +109,7 @@ static void register_obstream(sol::table& lib, const char* usertype)
       &_Stream::template write<int16_t>, "write_i32", &_Stream::template write<int32_t>, "write_i64", &_Stream::template write<int64_t>, "write_u8",
       &_Stream::template write<uint8_t>, "write_u16", &_Stream::template write<uint16_t>, "write_u32", &_Stream::template write<uint32_t>, "write_u64",
       &_Stream::template write<uint64_t>,
-#  if defined(YASIO_HAVE_HALF_FLOAT)
+#  if defined(YASIO_ENABLE_HALF_FLOAT)
       "write_f16", &_Stream::template write<fp16_t>,
 #  endif
       "write_f", &_Stream::template write<float>, "write_lf", &_Stream::template write<double>, "write_v",
@@ -134,7 +132,7 @@ static void register_ibstream(sol::table& lib, const char* usertype)
       &_Stream::template read<int16_t>, "read_i32", &_Stream::template read<int32_t>, "read_i64", &_Stream::template read<int64_t>, "read_u8",
       &_Stream::template read<uint8_t>, "read_u16", &_Stream::template read<uint16_t>, "read_u32", &_Stream::template read<uint32_t>, "read_u64",
       &_Stream::template read<uint64_t>,
-#  if defined(YASIO_HAVE_HALF_FLOAT)
+#  if defined(YASIO_ENABLE_HALF_FLOAT)
       "read_f16", &_Stream::template read<fp16_t>,
 #  endif
       "read_f", &_Stream::template read<float>, "read_lf", &_Stream::template read<double>, "read_v",
@@ -207,7 +205,11 @@ YASIO_LUA_API int luaopen_yasio(lua_State* L)
                               io_service(!hosts.empty() ? &hosts.front() : nullptr, (std::max)(static_cast<int>(hosts.size()), 1));
                         }),
       sol::meta_function::garbage_collect, sol::destructor([](io_service& memory_from_lua) { memory_from_lua.~io_service(); }), "start",
-      [](io_service* service, sol::function cb) { service->start([=](event_ptr ev) { cb(std::move(ev)); }); }, "stop", &io_service::stop, "set_option",
+      [](io_service* service, sol::function cb) {
+        service->set_option(YOPT_S_NO_DISPATCH, 1); // script doesn't support handle event at network thread
+        service->start([=](event_ptr ev) { cb(std::move(ev)); });
+      },
+      "stop", &io_service::stop, "set_option",
       [](io_service* service, int opt, sol::variadic_args args) {
         switch (opt)
         {
@@ -218,6 +220,7 @@ YASIO_LUA_API int luaopen_yasio(lua_State* L)
           case YOPT_C_UNPACK_STRIP:
           case YOPT_C_LOCAL_PORT:
           case YOPT_C_REMOTE_PORT:
+          case YOPT_C_KCP_CONV:
           case YOPT_C_UNPACK_NO_BSWAP:
             service->set_option(opt, static_cast<int>(args[0]), static_cast<int>(args[1]));
             break;
@@ -243,18 +246,6 @@ YASIO_LUA_API int luaopen_yasio(lua_State* L)
               io_event_cb_t fnwrap = [=](event_ptr e) mutable -> void { fn(std::move(e)); };
               service->set_option(opt, std::addressof(fnwrap));
             }
-            break;
-          case YOPT_C_KCP_CONV:
-          case YOPT_C_KCP_MTU:
-          case YOPT_C_KCP_RTO_MIN:
-            service->set_option(opt, static_cast<int>(args[0]), static_cast<int>(args[1]));
-            break;
-          case YOPT_C_KCP_WINDOW_SIZE:
-            service->set_option(opt, static_cast<int>(args[0]), static_cast<int>(args[1]), static_cast<int>(args[2]));
-            break;
-          case YOPT_C_KCP_NODELAY:
-            service->set_option(opt, static_cast<int>(args[0]), static_cast<int>(args[1]), static_cast<int>(args[2]), static_cast<int>(args[3]),
-                                static_cast<int>(args[4]));
             break;
           default:
             service->set_option(opt, static_cast<int>(args[0]));
@@ -312,7 +303,7 @@ YASIO_LUA_API int luaopen_yasio(lua_State* L)
   YASIO_EXPORT_ENUM(YCK_TCP_SERVER);
   YASIO_EXPORT_ENUM(YCK_UDP_CLIENT);
   YASIO_EXPORT_ENUM(YCK_UDP_SERVER);
-#  if defined(YASIO_HAVE_KCP)
+#  if defined(YASIO_ENABLE_KCP)
   YASIO_EXPORT_ENUM(YCK_KCP_CLIENT);
   YASIO_EXPORT_ENUM(YCK_KCP_SERVER);
 #  endif
@@ -337,11 +328,13 @@ YASIO_LUA_API int luaopen_yasio(lua_State* L)
   YASIO_EXPORT_ENUM(YOPT_C_REMOTE_ENDPOINT);
   YASIO_EXPORT_ENUM(YOPT_C_ENABLE_MCAST);
   YASIO_EXPORT_ENUM(YOPT_C_DISABLE_MCAST);
+#  if defined(YASIO_ENABLE_KCP)
   YASIO_EXPORT_ENUM(YOPT_C_KCP_CONV);
   YASIO_EXPORT_ENUM(YOPT_C_KCP_NODELAY);
   YASIO_EXPORT_ENUM(YOPT_C_KCP_WINDOW_SIZE);
   YASIO_EXPORT_ENUM(YOPT_C_KCP_MTU);
   YASIO_EXPORT_ENUM(YOPT_C_KCP_RTO_MIN);
+#  endif
   YASIO_EXPORT_ENUM(YOPT_C_MOD_FLAGS);
 
   YASIO_EXPORT_ENUM(YCF_REUSEADDR);
@@ -461,7 +454,7 @@ struct lua_type_traits<std::vector<yasio::inet::io_hostent>> {
     return 1;
   }
 };
-#  if defined(YASIO_HAVE_HALF_FLOAT)
+#  if defined(YASIO_ENABLE_HALF_FLOAT)
 template <>
 struct lua_type_traits<fp16_t> {
   typedef fp16_t get_type;
@@ -524,7 +517,7 @@ static void register_obstream(kaguya::LuaTable& lib, const char* usertype, const
           .addFunction("write_u16", &_BaseStream::template write<uint16_t>)
           .addFunction("write_u32", &_BaseStream::template write<uint32_t>)
           .addFunction("write_u64", &_BaseStream::template write<uint64_t>)
-#  if defined(YASIO_HAVE_HALF_FLOAT)
+#  if defined(YASIO_ENABLE_HALF_FLOAT)
           .addFunction("write_f16", &_BaseStream::template write<fp16_t>)
 #  endif
           .addFunction("write_f", &_BaseStream::template write<float>)
@@ -556,7 +549,7 @@ static void register_ibstream(kaguya::LuaTable& lib, const char* usertype, const
                              .addFunction("read_u16", &_StreamView::template read<uint16_t>)
                              .addFunction("read_u32", &_StreamView::template read<uint32_t>)
                              .addFunction("read_u64", &_StreamView::template read<uint64_t>)
-#  if defined(YASIO_HAVE_HALF_FLOAT)
+#  if defined(YASIO_ENABLE_HALF_FLOAT)
                              .addFunction("read_f16", &_Stream::template read<fp16_t>)
 #  endif
                              .addFunction("read_f", &_StreamView::template read<float>)
@@ -643,6 +636,7 @@ end
           .addStaticFunction("start",
                              [](io_service* service, kaguya::LuaFunction cb) {
                                io_event_cb_t fnwrap = [=](event_ptr e) mutable -> void { cb(e.get()); };
+                               service->set_option(YOPT_S_NO_DISPATCH, 1); // script doesn't support handle event at network thread
                                service->start(std::move(fnwrap));
                              })
           .addFunction("stop", &io_service::stop)
@@ -678,6 +672,7 @@ end
                                  case YOPT_C_UNPACK_STRIP:
                                  case YOPT_C_LOCAL_PORT:
                                  case YOPT_C_REMOTE_PORT:
+                                 case YOPT_C_KCP_CONV:
                                  case YOPT_C_UNPACK_NO_BSWAP:
                                    service->set_option(opt, static_cast<int>(args[0]), static_cast<int>(args[1]));
                                    break;
@@ -703,18 +698,6 @@ end
                                      io_event_cb_t fnwrap   = [=](event_ptr e) mutable -> void { fn(e.get()); };
                                      service->set_option(opt, std::addressof(fnwrap));
                                    }
-                                   break;
-                                 case YOPT_C_KCP_CONV:
-                                 case YOPT_C_KCP_MTU:
-                                 case YOPT_C_KCP_RTO_MIN:
-                                   service->set_option(opt, static_cast<int>(args[0]), static_cast<int>(args[1]));
-                                   break;
-                                 case YOPT_C_KCP_WINDOW_SIZE:
-                                   service->set_option(opt, static_cast<int>(args[0]), static_cast<int>(args[1]), static_cast<int>(args[2]));
-                                   break;
-                                 case YOPT_C_KCP_NODELAY:
-                                   service->set_option(opt, static_cast<int>(args[0]), static_cast<int>(args[1]), static_cast<int>(args[2]), static_cast<int>(args[3]),
-                                                       static_cast<int>(args[4]));
                                    break;
                                  default:
                                    service->set_option(opt, static_cast<int>(args[0]));
@@ -759,7 +742,7 @@ end
   YASIO_EXPORT_ENUM(YCK_TCP_SERVER);
   YASIO_EXPORT_ENUM(YCK_UDP_CLIENT);
   YASIO_EXPORT_ENUM(YCK_UDP_SERVER);
-#  if defined(YASIO_HAVE_KCP)
+#  if defined(YASIO_ENABLE_KCP)
   YASIO_EXPORT_ENUM(YCK_KCP_CLIENT);
   YASIO_EXPORT_ENUM(YCK_KCP_SERVER);
 #  endif
@@ -785,10 +768,6 @@ end
   YASIO_EXPORT_ENUM(YOPT_C_ENABLE_MCAST);
   YASIO_EXPORT_ENUM(YOPT_C_DISABLE_MCAST);
   YASIO_EXPORT_ENUM(YOPT_C_KCP_CONV);
-  YASIO_EXPORT_ENUM(YOPT_C_KCP_NODELAY);
-  YASIO_EXPORT_ENUM(YOPT_C_KCP_WINDOW_SIZE);
-  YASIO_EXPORT_ENUM(YOPT_C_KCP_MTU);
-  YASIO_EXPORT_ENUM(YOPT_C_KCP_RTO_MIN);
   YASIO_EXPORT_ENUM(YOPT_C_MOD_FLAGS);
 
   YASIO_EXPORT_ENUM(YCF_REUSEADDR);

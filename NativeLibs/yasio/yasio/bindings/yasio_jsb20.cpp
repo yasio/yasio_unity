@@ -30,9 +30,7 @@ SOFTWARE.
 #define YASIO_OBS_BUILTIN_STACK 1
 
 #include "yasio/yasio.hpp"
-#include "yasio/ibstream.hpp"
-#include "yasio/obstream.hpp"
-#include "yasio/detail/ref_ptr.hpp"
+#include "yasio/ref_ptr.hpp"
 
 #if __has_include(<cocos/bindings/jswrapper/SeApi.h>) || defined(YASIO_CREATOR_30_OR_LATER)
 #  include "cocos/bindings/jswrapper/SeApi.h"
@@ -63,19 +61,22 @@ using namespace yasio;
 namespace yasio_jsb
 {
 
-#define YASIO_DEFINE_REFERENCE_CLASS                                                                                                                           \
-private:                                                                                                                                                       \
-  unsigned int referenceCount_;                                                                                                                                \
-                                                                                                                                                               \
-public:                                                                                                                                                        \
-  void retain() { ++referenceCount_; }                                                                                                                         \
-  void release()                                                                                                                                               \
-  {                                                                                                                                                            \
-    --referenceCount_;                                                                                                                                         \
-    if (referenceCount_ == 0)                                                                                                                                  \
-      delete this;                                                                                                                                             \
-  }                                                                                                                                                            \
-                                                                                                                                                               \
+#define YASIO_DEFINE_REFERENCE_CLASS \
+private:                             \
+  unsigned int referenceCount_;      \
+                                     \
+public:                              \
+  void retain()                      \
+  {                                  \
+    ++referenceCount_;               \
+  }                                  \
+  void release()                     \
+  {                                  \
+    --referenceCount_;               \
+    if (referenceCount_ == 0)        \
+      delete this;                   \
+  }                                  \
+                                     \
 private:
 
 enum
@@ -109,7 +110,7 @@ TIMER_ID loop(unsigned int n, float interval, vcallback_t callback)
 {
   if (n > 0 && interval >= 0)
   {
-    yasio::gc::ref_ptr<TimerObject> timerObj(new TimerObject(std::move(callback)));
+    yasio::ref_ptr<TimerObject> timerObj(new TimerObject(std::move(callback)));
 
     auto timerId = reinterpret_cast<TIMER_ID>(++TimerObject::s_timerId);
 
@@ -130,7 +131,7 @@ TIMER_ID delay(float delay, vcallback_t callback)
 {
   if (delay > 0)
   {
-    yasio::gc::ref_ptr<TimerObject> timerObj(new TimerObject(std::move(callback)));
+    yasio::ref_ptr<TimerObject> timerObj(new TimerObject(std::move(callback)));
     auto timerId = reinterpret_cast<TIMER_ID>(++TimerObject::s_timerId);
 
     std::string key = StringUtil::format("STMR#%p", timerId);
@@ -1003,10 +1004,10 @@ bool js_yasio_io_event_packet(se::State& s)
         s.rval().setObject(se::HandleObject(se::Object::createArrayBufferObject(packet.data(), packet.size())));
         break;
       case yasio_jsb::BUFFER_FAST:
-        native_ptr_to_seval<yasio::ibstream>(new yasio::ibstream(yasio::forward_packet((yasio::packet&&)packet)), &s.rval());
+        native_ptr_to_seval<yasio::ibstream>(new yasio::ibstream(yasio::forward_packet((yasio::packet &&) packet)), &s.rval());
         break;
       default:
-        native_ptr_to_seval<yasio::ibstream>(new yasio::fast_ibstream(yasio::forward_packet((yasio::packet&&)packet)), &s.rval());
+        native_ptr_to_seval<yasio::ibstream>(new yasio::fast_ibstream(yasio::forward_packet((yasio::packet &&) packet)), &s.rval());
     }
   }
   else
@@ -1148,6 +1149,8 @@ bool js_yasio_io_service_start(se::State& s)
         }
       };
 
+      // script doesn't support handle event at network thread
+      cobj->set_option(YOPT_S_NO_DISPATCH, 1);
       cobj->start(std::move(fnwrap));
 
       s.rval().setUndefined();
@@ -1496,15 +1499,15 @@ bool jsb_register_yasio(se::Object* obj)
 
   // ##-- yasio enums
   se::Value __jsvalIntVal;
-#define YASIO_SET_INT_PROP(name, value)                                                                                                                        \
-  __jsvalIntVal.setInt32(value);                                                                                                                               \
+#define YASIO_SET_INT_PROP(name, value) \
+  __jsvalIntVal.setInt32(value);        \
   yasio->setProperty(name, __jsvalIntVal)
 #define YASIO_EXPORT_ENUM(v) YASIO_SET_INT_PROP(#v, v)
   YASIO_EXPORT_ENUM(YCK_TCP_CLIENT);
   YASIO_EXPORT_ENUM(YCK_TCP_SERVER);
   YASIO_EXPORT_ENUM(YCK_UDP_CLIENT);
   YASIO_EXPORT_ENUM(YCK_UDP_SERVER);
-#if defined(YASIO_HAVE_KCP)
+#if defined(YASIO_ENABLE_KCP)
   YASIO_EXPORT_ENUM(YCK_KCP_CLIENT);
   YASIO_EXPORT_ENUM(YCK_KCP_SERVER);
 #endif
@@ -1527,7 +1530,13 @@ bool jsb_register_yasio(se::Object* obj)
   YASIO_EXPORT_ENUM(YOPT_C_REMOTE_ENDPOINT);
   YASIO_EXPORT_ENUM(YOPT_C_ENABLE_MCAST);
   YASIO_EXPORT_ENUM(YOPT_C_DISABLE_MCAST);
+#if defined(YASIO_ENABLE_KCP)
   YASIO_EXPORT_ENUM(YOPT_C_KCP_CONV);
+  YASIO_EXPORT_ENUM(YOPT_C_KCP_NODELAY);
+  YASIO_EXPORT_ENUM(YOPT_C_KCP_WINDOW_SIZE);
+  YASIO_EXPORT_ENUM(YOPT_C_KCP_MTU);
+  YASIO_EXPORT_ENUM(YOPT_C_KCP_RTO_MIN);
+#endif
   YASIO_EXPORT_ENUM(YOPT_C_MOD_FLAGS);
 
   YASIO_EXPORT_ENUM(YCF_REUSEADDR);

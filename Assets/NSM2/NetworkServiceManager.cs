@@ -312,34 +312,34 @@ namespace NSM2
         /// <param name="sid"></param>
         /// <param name="opaque">The stack address of shared_ptr<io_packet></param>
         [MonoPInvokeCallback(typeof(YASIO_NI.YNIEventDelegate))]
-        static void HandleNativeNetworkIoEvent(int kind, int status, int channel, IntPtr sid, IntPtr opaque)
+        static void HandleNativeNetworkIoEvent(ref YASIO_NI.EventData data)
         {
             var nsm = NetworkServiceManager.Instance;
-            Debug.LogFormat("The channel connect_id={0}, bytes_transferred={1}", YASIO_NI.yasio_connect_id(nsm._service, channel),
-                YASIO_NI.yasio_bytes_transferred(nsm._service, channel));
-            switch ((YASIO_NI.YEnums)kind)
+            Debug.LogFormat("The channel connect_id={0}, bytes_transferred={1}", YASIO_NI.yasio_connect_id(nsm._service, data.channel),
+                YASIO_NI.yasio_bytes_transferred(nsm._service, data.channel));
+            switch ((YASIO_NI.YEnums)data.kind)
             {
-                case YASIO_NI.YEnums.YEK_PACKET:
-                    (int cmd, NativeDataView ud, Stream hold) = nsm._packeter.DecodePDU(YASIO_NI.yasio_unwrap_ptr(opaque, 0), YASIO_NI.yasio_unwrap_len(opaque, 0));
-                    nsm._packeter.HandleEvent(NetworkEvent.PACKET, cmd, ud, channel);
+                case YASIO_NI.YEnums.YEK_ON_PACKET:
+                    (int cmd, NativeDataView ud, Stream hold) = nsm._packeter.DecodePDU(YASIO_NI.yasio_unwrap_ptr(data.packet, 0), YASIO_NI.yasio_unwrap_len(data.packet, 0));
+                    nsm._packeter.HandleEvent(NetworkEvent.PACKET, cmd, ud, data.channel);
                     hold?.Dispose();
                     break;
-                case YASIO_NI.YEnums.YEK_CONNECT_RESPONSE:
-                    if (status == 0)
+                case YASIO_NI.YEnums.YEK_ON_OPEN:
+                    if (data.status == 0)
                     {
-                        nsm.UpdateSession(channel, sid);
-                        nsm.BroadcastEventToListeners(NetworkEventType.CONNECT_SUCCESS, 0, channel);
-                        nsm._packeter.HandleEvent(NetworkEvent.CONNECT_SUCCESS, -1, NativeDataView.NullValue, channel);
+                        nsm.UpdateSession(data.channel, data.session);
+                        nsm.BroadcastEventToListeners(NetworkEventType.CONNECT_SUCCESS, 0, data.channel);
+                        nsm._packeter.HandleEvent(NetworkEvent.CONNECT_SUCCESS, -1, NativeDataView.NullValue, data.channel);
                     }
                     else
                     {
-                        nsm.BroadcastEventToListeners(NetworkEventType.CONNECT_FAILED, status, channel);
-                        nsm._packeter.HandleEvent(NetworkEvent.CONNECT_FAILED, -1, NativeDataView.NullValue, channel);
+                        nsm.BroadcastEventToListeners(NetworkEventType.CONNECT_FAILED, data.status, data.channel);
+                        nsm._packeter.HandleEvent(NetworkEvent.CONNECT_FAILED, -1, NativeDataView.NullValue, data.channel);
                     }
                     break;
-                case YASIO_NI.YEnums.YEK_CONNECTION_LOST:
-                    nsm.BroadcastEventToListeners(NetworkEventType.CONNECTION_LOST, status, channel);
-                    nsm._packeter.HandleEvent(NetworkEvent.CONNECTION_LOST, -1, NativeDataView.NullValue, channel);
+                case YASIO_NI.YEnums.YEK_ON_CLOSE:
+                    nsm.BroadcastEventToListeners(NetworkEventType.CONNECTION_LOST, data.status, data.channel);
+                    nsm._packeter.HandleEvent(NetworkEvent.CONNECTION_LOST, -1, NativeDataView.NullValue, data.channel);
                     break;
             }
         }
