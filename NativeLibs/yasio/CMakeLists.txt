@@ -1,6 +1,6 @@
 # A multi-platform support c++11 library with focus on asynchronous socket I/O for any client application.
 #
-# Copyright (c) 2012-2023 HALX99.
+# Copyright (c) 2012-2024 HALX99.
 #
 # Licensed under the MIT License (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
 # http://opensource.org/licenses/MIT
@@ -18,31 +18,31 @@ cmake_policy(SET CMP0048 NEW)
 set(yasio_target_name yasio)
 project(${yasio_target_name})
 
+set(_1kfetch_cache_dir "${CMAKE_CURRENT_LIST_DIR}/cache" CACHE STRING "" FORCE)
+set(_1kfetch_manifest "${CMAKE_CURRENT_LIST_DIR}/manifest.json" CACHE STRING "" FORCE)
+
+include(1k/platform.cmake)
+include(1k/fetch.cmake)
 include(CMakeDependentOption)
 
-# specify settings for yasio-ni
-# cmake_dependent_option(YASIO_BUILD_TESTS
-#   "Build the tests when we are the root project" ON
-#   "CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR" OFF)
+cmake_dependent_option(YASIO_BUILD_TESTS
+  "Build the tests when we are the root project" ON
+  "CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR" OFF)
 
-# cmake_dependent_option(YASIO_BUILD_LUA_EXAMPLE
-#   "Build lua example when we are the root project" ON
-#   "CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR" OFF)
-set(YASIO_SSL_BACKEND 0)
-set(YASIO_ENABLE_HALF_FLOAT OFF)
+cmake_dependent_option(YASIO_BUILD_LUA_EXAMPLE
+  "Build lua example when we are the root project" ON
+  "CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR" OFF)
 
-option(YASIO_ENABLE_EXT_HTTP "Build yasio http extension" OFF)
+option(YASIO_ENABLE_EXT_HTTP "Build yasio http extension" ON)
 option(YASIO_ENABLE_LUA "Build yasio with lua support" OFF)
 option(YASIO_ENABLE_AXLUA "Build yasio with axmol-lua support" OFF)
-option(YAISO_ENABLE_NI "Build yasio with native interface for interop" ON)
-option(YASIO_ENABLE_KCP "Enable kcp support" ON)
+option(YASIO_ENABLE_NI "Build yasio with native interface for interop" OFF)
+option(YASIO_ENABLE_KCP "Enable kcp support" OFF)
 option(YASIO_NO_DEPS "Build yasio without deps" OFF)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 set(YASIO_ROOT ${CMAKE_CURRENT_LIST_DIR})
-
-
 
 message(STATUS "YASIO_ROOT=${YASIO_ROOT}")
 message(STATUS "CMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID}")
@@ -120,11 +120,12 @@ endif()
 
 # Auto choose ssl backend if not supplied by user
 if (NOT DEFINED YASIO_SSL_BACKEND)
-    # mbedtls can't compile for watchOS, and openssl prebuilt also not ready yet
-    if ((CMAKE_SYSTEM_NAME STREQUAL "watchOS") OR (CMAKE_SYSTEM_NAME MATCHES "Emscripten"))
+    if (CMAKE_SYSTEM_NAME MATCHES "Emscripten")
         set(YASIO_SSL_BACKEND 0)
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "watchOS")
+        set(YASIO_SSL_BACKEND 2) # mbedtls
     else()
-        set(YASIO_SSL_BACKEND 1)
+        set(YASIO_SSL_BACKEND 1) # openssl
     endif()
 endif()
 
@@ -149,10 +150,10 @@ if (ANDROID)
     endif()
 endif()
 
-include_directories(
+set(YASIO_INC_DIRS 
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}
-    ${THIRDPART_INC}
+    "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty"
 )
 
 ### no deps
@@ -170,13 +171,25 @@ endif()
 
 if (YASIO_SSL_BACKEND EQUAL 1) # openssl
    message(STATUS "Build with openssl support")
-   add_subdirectory(thirdparty/openssl)
+   add_subdirectory(3rdparty/openssl)
 elseif(YASIO_SSL_BACKEND EQUAL 2) # mbedtls
     message(STATUS "Build with mbedtls support")
-    include_directories("${PROJECT_SOURCE_DIR}/thirdparty/mbedtls/include")
     set(ENABLE_PROGRAMS OFF CACHE BOOL "Build mbedtls programs" FORCE)
     set(ENABLE_TESTING OFF CACHE BOOL "Build mbed TLS tests." FORCE)
-    add_subdirectory(${PROJECT_SOURCE_DIR}/thirdparty/mbedtls)
+    set(MBEDTLS_VER "3.4.1")
+    if(MSVC_VERSION LESS 1900)
+        message(AUTHOR_WARNING "Using mbedtls 2.28.3 for vs2013 happy")
+        set(MBEDTLS_VER "2.28.3")
+    endif()
+    include(1k/CPM.cmake)
+    CPMAddPackage(
+      NAME mbedtls
+      VERSION ${MBEDTLS_VER}
+      GITHUB_REPOSITORY "Mbed-TLS/mbedtls"
+      GIT_TAG "v${MBEDTLS_VER}"
+      OPTIONS
+        "MBEDTLS_FATAL_WARNINGS OFF"
+    )
     yasio_config_target_outdir(mbedtls)
     yasio_config_target_outdir(mbedcrypto)
     yasio_config_target_outdir(mbedx509)
@@ -184,18 +197,23 @@ endif()
 
 ### c-ares support
 if (YASIO_USE_CARES)
-    add_subdirectory(thirdparty/c-ares)
+    add_subdirectory(3rdparty/c-ares)
 endif()
 
 ### The yasio core library project
 file(GLOB YASIO_CORE yasio/*.hpp;yasio/*.cpp;yasio/compiler/*.hpp;yasio/impl/*.hpp;)
 
 if (YASIO_ENABLE_KCP)
-  set(YASIO_CORE ${YASIO_CORE} 
-    ${PROJECT_SOURCE_DIR}/kcp/ikcp.c
-  )
+  if (NOT kcp_SOURCE_DIR)
+      set(YASIO_CORE ${YASIO_CORE} 
+        ${PROJECT_SOURCE_DIR}/3rdparty/kcp/ikcp.c
+      )
+      list(APPEND YASIO_INC_DIRS  "${PROJECT_SOURCE_DIR}/3rdparty/kcp")
+  else()
+      list(APPEND THIRDPART_LIB "kcp")
+  endif()
 endif()
-if (YAISO_ENABLE_NI)
+if (YASIO_ENABLE_NI)
   set(YASIO_CORE ${YASIO_CORE} 
     yasio/bindings/yasio_ni.cpp
   )
@@ -220,11 +238,11 @@ if(ANDROID AND CARES_INCLUDE_DIR)
 endif()
 
 if(WIN32 AND YASIO_ENABLE_HPERF_IO)
-  set(THIRDPART_SRC thirdparty/wepoll/wepoll.c)
+  set(THIRDPART_SRC 3rdparty/wepoll/wepoll.c)
 endif()
 
-if(YASIO_ENABLE_KCP OR YASIO_ENABLE_LUA OR YASIO_USE_CARES OR YASIO_ENABLE_HALF_FLOAT)
-    include_directories("${PROJECT_SOURCE_DIR}/thirdparty")
+if(YASIO_ENABLE_KCP)
+    include_directories("${PROJECT_SOURCE_DIR}/3rdparty")
 endif()
 
 macro(source_group_by_dir proj_dir source_files)
@@ -294,7 +312,8 @@ else ( )
     )
 endif ( )
 
-target_include_directories(${yasio_target_name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty)
+message(STATUS "YASIO_INC_DIRS=${YASIO_INC_DIRS}")
+target_include_directories(${yasio_target_name} PUBLIC ${YASIO_INC_DIRS})
 
 if (BUILD_SHARED_LIBS)
     target_compile_definitions(${yasio_target_name} 
@@ -410,8 +429,8 @@ if(YASIO_ENABLE_LUA)
 endif()
 
 # link libraries for yasio_core when BUILD_SHARED_LIBS=TRUE
+yasio_link_ssl_libraries(${yasio_target_name})
 if(BUILD_SHARED_LIBS)
-    yasio_link_ssl_libraries(${yasio_target_name})
     if(NOT WIN32 AND (NOT ANDROID))
         target_link_libraries(${yasio_target_name} pthread)
     endif()
@@ -448,6 +467,7 @@ macro (yasio_config_lib_options target_name)
     yasio_config_pred(${target_name} YASIO_DISABLE_POLL)
     yasio_config_pred(${target_name} YASIO_DISABLE_EPOLL)
     yasio_config_pred(${target_name} YASIO_DISABLE_KQUEUE)
+    yasio_config_pred(${target_name} YASIO_NT_XHRES_TIMER)
     yasio_config_target_outdir(${yasio_target_name})
 endmacro()
 
@@ -478,7 +498,7 @@ if(YASIO_ENABLE_EXT_HTTP)
         set (BUILD_SHARED_LIBS FALSE CACHE BOOL "" FORCE)
         set (BUILD_STATIC_LIBS TRUE CACHE BOOL "" FORCE)
     endif()
-    add_subdirectory(thirdparty/llhttp)
+    add_subdirectory(3rdparty/llhttp)
 
     # yasio_http
     add_subdirectory(extensions/yasio_http)
@@ -492,6 +512,7 @@ if(YASIO_BUILD_TESTS)
     add_subdirectory(tests/icmp)
     add_subdirectory(tests/mcast)
     add_subdirectory(tests/speed)
+    add_subdirectory(tests/mtu)
     add_subdirectory(tests/issue166)
     add_subdirectory(tests/issue178)
     add_subdirectory(tests/issue201)
@@ -504,7 +525,7 @@ if(YASIO_BUILD_TESTS)
     add_subdirectory(tests/echo_client)
     if(YASIO_ENABLE_LUA AND YASIO_BUILD_LUA_EXAMPLE)
         add_subdirectory(examples/lua)
-        target_include_directories(example_lua PRIVATE thirdparty)
+        target_include_directories(example_lua PRIVATE 3rdparty)
         target_compile_definitions(example_lua PRIVATE YASIO_LUA_ENABLE_GLOBAL=0)
     endif()
     if (NOT YASIO_NO_DEPS)

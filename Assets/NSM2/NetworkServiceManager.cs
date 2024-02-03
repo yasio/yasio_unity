@@ -1,19 +1,34 @@
-﻿//
-// Copyright (c) Bytedance Inc 2021. All right reserved.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-//
+﻿//////////////////////////////////////////////////////////////////////////////////////////
+// A multi-platform support c++11 library with focus on asynchronous socket I/O for any
+// client application.
+//////////////////////////////////////////////////////////////////////////////////////////
+/*
+The MIT License (MIT)
+
+Copyright (c) 2012-2024 HALX99
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 using AOT;
-using ByteDance.NAPI;
 using System.IO;
 
 namespace NSM2
@@ -215,10 +230,10 @@ namespace NSM2
             }
         }
 
-        unsafe public void SendSerializedMsg(int cmd, NativeDataView ud, int channel = 0)
+        unsafe public void SendSerializedMsg(int cmd, Span<byte> ud, int channel = 0)
         {
             // The whole packet is sizeof(body) + sizeof(header), so no memory realloc
-            IntPtr pdu = YASIO_NI.yasio_ob_new(ud.len + _packeter.GetHeaderSize());
+            IntPtr pdu = YASIO_NI.yasio_ob_new(ud.Length + _packeter.GetHeaderSize());
             
             _packeter.EncodePDU(cmd, ud, pdu);
             if (channel < _sessions.Length)
@@ -246,15 +261,16 @@ namespace NSM2
         /// 向远端发送数据
         /// </summary>
         /// <param name="bytes"></param>
-        public void SendRaw(NativeDataView data, int channel)
+        public unsafe void SendRaw(Span<byte> data, int channel)
         {
             if (channel < _sessions.Length)
             {
                 IntPtr sid = _sessions[channel];
                 if (sid != IntPtr.Zero)
                 {
-                    
-                    YASIO_NI.yasio_write(_service, sid, data.ptr, data.len);
+                    fixed (void* p = data) { 
+                        YASIO_NI.yasio_write(_service, sid, (IntPtr)p, data.Length);
+                    }
                 }
                 else
                 {
@@ -270,10 +286,7 @@ namespace NSM2
 
         public unsafe void SendRaw(byte[] data, int channel)
         {
-            fixed (byte* p = data)
-            {
-                SendRaw(new NativeDataView((IntPtr)p, data.Length), channel);
-            }
+            SendRaw(new Span<byte>(data), channel);
         }
 
         /// <summary>
@@ -312,34 +325,35 @@ namespace NSM2
         /// <param name="sid"></param>
         /// <param name="opaque">The stack address of shared_ptr<io_packet></param>
         [MonoPInvokeCallback(typeof(YASIO_NI.YNIEventDelegate))]
-        static void HandleNativeNetworkIoEvent(ref YASIO_NI.EventData data)
+        static void HandleNativeNetworkIoEvent(ref YASIO_NI.IOEvent ev)
         {
             var nsm = NetworkServiceManager.Instance;
-            Debug.LogFormat("The channel connect_id={0}, bytes_transferred={1}", YASIO_NI.yasio_connect_id(nsm._service, data.channel),
-                YASIO_NI.yasio_bytes_transferred(nsm._service, data.channel));
-            switch ((YASIO_NI.YEnums)data.kind)
+            Debug.LogFormat("The channel connect_id={0}, bytes_transferred={1}", YASIO_NI.yasio_connect_id(nsm._service, ev.channel),
+                YASIO_NI.yasio_bytes_transferred(nsm._service, ev.channel));
+            switch ((YASIO_NI.YEnums)ev.kind)
             {
                 case YASIO_NI.YEnums.YEK_ON_PACKET:
-                    (int cmd, NativeDataView ud, Stream hold) = nsm._packeter.DecodePDU(YASIO_NI.yasio_unwrap_ptr(data.packet, 0), YASIO_NI.yasio_unwrap_len(data.packet, 0));
-                    nsm._packeter.HandleEvent(NetworkEvent.PACKET, cmd, ud, data.channel);
+                    Span<byte> ud;
+                    (int cmd, Stream hold) = nsm._packeter.DecodePDU(YASIO_NI.yasio_unwrap_ptr(ev.data.msg, 0), YASIO_NI.yasio_unwrap_len(ev.data.msg, 0), out ud);
+                    nsm._packeter.HandleEvent(NetworkEvent.PACKET, cmd, ud, ev.channel);
                     hold?.Dispose();
                     break;
                 case YASIO_NI.YEnums.YEK_ON_OPEN:
-                    if (data.status == 0)
+                    if (ev.data.error == 0)
                     {
-                        nsm.UpdateSession(data.channel, data.session);
-                        nsm.BroadcastEventToListeners(NetworkEventType.CONNECT_SUCCESS, 0, data.channel);
-                        nsm._packeter.HandleEvent(NetworkEvent.CONNECT_SUCCESS, -1, NativeDataView.NullValue, data.channel);
+                        nsm.UpdateSession(ev.channel, ev.thandle);
+                        nsm.BroadcastEventToListeners(NetworkEventType.CONNECT_SUCCESS, 0, ev.channel);
+                        nsm._packeter.HandleEvent(NetworkEvent.CONNECT_SUCCESS, -1, Span<byte>.Empty, ev.channel);
                     }
                     else
                     {
-                        nsm.BroadcastEventToListeners(NetworkEventType.CONNECT_FAILED, data.status, data.channel);
-                        nsm._packeter.HandleEvent(NetworkEvent.CONNECT_FAILED, -1, NativeDataView.NullValue, data.channel);
+                        nsm.BroadcastEventToListeners(NetworkEventType.CONNECT_FAILED, ev.data.error, ev.channel);
+                        nsm._packeter.HandleEvent(NetworkEvent.CONNECT_FAILED, -1, Span<byte>.Empty, ev.channel);
                     }
                     break;
                 case YASIO_NI.YEnums.YEK_ON_CLOSE:
-                    nsm.BroadcastEventToListeners(NetworkEventType.CONNECTION_LOST, data.status, data.channel);
-                    nsm._packeter.HandleEvent(NetworkEvent.CONNECTION_LOST, -1, NativeDataView.NullValue, data.channel);
+                    nsm.BroadcastEventToListeners(NetworkEventType.CONNECTION_LOST, ev.data.error, ev.channel);
+                    nsm._packeter.HandleEvent(NetworkEvent.CONNECTION_LOST, -1, Span<byte>.Empty, ev.channel);
                     break;
             }
         }

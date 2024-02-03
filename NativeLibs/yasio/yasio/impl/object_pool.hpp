@@ -5,7 +5,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2023 HALX99
+Copyright (c) 2012-2024 HALX99
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -46,11 +46,6 @@ namespace yasio
 {
 namespace detail
 {
-template <typename _Ty>
-struct aligned_storage_size {
-  static const size_t value = sizeof(typename std::aligned_storage<sizeof(_Ty)>::type);
-};
-
 class object_pool {
 #if defined(_DEBUG)
   typedef struct free_link_node {

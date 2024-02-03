@@ -5,7 +5,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2023 HALX99
+Copyright (c) 2012-2024 HALX99
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -27,16 +27,25 @@ SOFTWARE.
 */
 #define YASIO_HEADER_ONLY 1
 #define YASIO_HAVE_KCP 1
+#define YASIO_ENABLE_KCP 1
 #define YASIO_OBS_BUILTIN_STACK 1
 
 #include "yasio/yasio.hpp"
 #include "yasio/ref_ptr.hpp"
 
+#if __has_include(<cocos-version.h>)
+#  include "cocos-version.h"
+#endif
+
 #if __has_include(<cocos/bindings/jswrapper/SeApi.h>) || defined(YASIO_CREATOR_30_OR_LATER)
 #  include "cocos/bindings/jswrapper/SeApi.h"
 #  include "cocos/bindings/manual/jsb_conversions.h"
 #  include "cocos/bindings/manual/jsb_global.h"
-#  include "cocos/platform/Application.h"
+#  if __has_include(<cocos/platform/Application.h>)
+#    include "cocos/platform/Application.h"
+#  elif __has_include(<cocos/application/ApplicationManager.h>)
+#    include "cocos/application/ApplicationManager.h"
+#  endif
 #  include "cocos/base/Scheduler.h"
 #  include "cocos/base/StringUtil.h"
 using namespace cc;
@@ -86,6 +95,13 @@ enum
   BUFFER_FAST,
 };
 
+// since 3.5 use ApplicationManager
+#if defined(COCOS_MAJOR_VERSION) && COCOS_MAJOR_VERSION >= 3 && COCOS_MINJOR_VERSION >= 5
+#  define YASIO_JSB_SCHE CC_CURRENT_ENGINE()->getScheduler()
+#else
+#  define YASIO_JSB_SCHE Application::getInstance()->getScheduler()
+#endif
+
 namespace stimer
 {
 // The STIMER fake target: 0xfffffffe, well, any system's malloc never return a object address
@@ -101,7 +117,7 @@ struct TimerObject {
   vcallback_t callback_;
   static uintptr_t s_timerId;
 
-  DEFINE_OBJECT_POOL_ALLOCATION(TimerObject, 128)
+  DEFINE_CONCURRENT_OBJECT_POOL_ALLOCATION(TimerObject, 128)
   YASIO_DEFINE_REFERENCE_CLASS
 };
 uintptr_t TimerObject::s_timerId = 0;
@@ -116,7 +132,7 @@ TIMER_ID loop(unsigned int n, float interval, vcallback_t callback)
 
     std::string key = StringUtil::format("STMR#%p", timerId);
 
-    Application::getInstance()->getScheduler()->schedule(
+    YASIO_JSB_SCHE->schedule(
         [timerObj](float /*dt*/) { // lambda expression hold the reference of timerObj automatically.
           timerObj->callback_();
         },
@@ -135,7 +151,7 @@ TIMER_ID delay(float delay, vcallback_t callback)
     auto timerId = reinterpret_cast<TIMER_ID>(++TimerObject::s_timerId);
 
     std::string key = StringUtil::format("STMR#%p", timerId);
-    Application::getInstance()->getScheduler()->schedule(
+    YASIO_JSB_SCHE->schedule(
         [timerObj](float /*dt*/) { // lambda expression hold the reference of timerObj automatically.
           timerObj->callback_();
         },
@@ -149,9 +165,9 @@ TIMER_ID delay(float delay, vcallback_t callback)
 void kill(TIMER_ID timerId)
 {
   std::string key = StringUtil::format("STMR#%p", timerId);
-  Application::getInstance()->getScheduler()->unschedule(key, STIMER_TARGET_VALUE);
+  YASIO_JSB_SCHE->unschedule(key, STIMER_TARGET_VALUE);
 }
-void clear() { Application::getInstance()->getScheduler()->unscheduleAllForTarget(STIMER_TARGET_VALUE); }
+void clear() { YASIO_JSB_SCHE->unscheduleAllForTarget(STIMER_TARGET_VALUE); }
 } // namespace stimer
 } // namespace yasio_jsb
 
@@ -182,8 +198,8 @@ bool jsb_yasio_setTimeout(se::State& s)
         }
       };
 
-      float timeout = 0;
-      seval_to_float(arg1, &timeout);
+      float timeout = arg1.toFloat();
+
       auto timerId = yasio_jsb::stimer::delay(timeout, std::move(callback));
 
       s.rval().setNumber((double)(int64_t)timerId);
@@ -222,8 +238,7 @@ bool jsb_yasio_setInterval(se::State& s)
         }
       };
 
-      float interval = 0;
-      seval_to_float(arg1, &interval);
+      float interval = arg1.toFloat();
       auto timerId = yasio_jsb::stimer::loop((std::numeric_limits<unsigned int>::max)(), interval, std::move(callback));
 
       s.rval().setNumber((double)(int64_t)timerId);
@@ -340,36 +355,49 @@ cxx17::string_view seval_to_string_view(const se::Value& v, bool* unrecognized_o
 
 //////////////////// common template functions //////////////
 
+#if defined(JSB_MAKE_PRIVATE_OBJECT)
+#define YASIO_JSB_USE_SHARED_OBJECT 1
+#  define yasio_jsb_make_object(kls, ...) JSB_MAKE_PRIVATE_OBJECT(kls, __VA_ARGS__)
+#else
+#  define yasio_jsb_make_object(kls, ...) new kls(__VA_ARGS__)
+#endif
+
 template <typename T>
 static bool jsb_yasio__ctor(se::State& s)
 {
-  auto cobj = new T();
+  auto cobj = yasio_jsb_make_object(T);
+#if defined(YASIO_JSB_USE_SHARED_OBJECT)
+  s.thisObject()->setPrivateObject(cobj);
+#else
   s.thisObject()->setPrivateData(cobj);
   se::NonRefNativePtrCreatedByCtorMap::emplace(cobj);
+#endif
   return true;
 }
 
 template <typename T>
 static bool jsb_yasio__dtor(se::State& s)
 {
+#if !defined(JSB_MAKE_PRIVATE_OBJECT)
   auto iter = se::NonRefNativePtrCreatedByCtorMap::find(s.nativeThisObject());
   if (iter != se::NonRefNativePtrCreatedByCtorMap::end())
-  {
+  { // finalize created by ctor < 3.6.0
     CC_LOG_DEBUG("jsbindings: finalizing JS object(created by ctor) %p(%s)", s.nativeThisObject(), typeid(T).name());
     se::NonRefNativePtrCreatedByCtorMap::erase(iter);
     T* cobj = reinterpret_cast<T*>(s.nativeThisObject());
     delete cobj;
+    return true;
   }
-  else
-  { // finalize not created by ctor
-    auto iter2 = se::NativePtrToObjectMap::find(s.nativeThisObject());
-    if (iter2 != se::NativePtrToObjectMap::end())
-    {
-      CC_LOG_DEBUG("jsbindings: finalizing JS object(created by native) %p(%s)", s.nativeThisObject(), typeid(T).name());
-      T* cobj = reinterpret_cast<T*>(s.nativeThisObject());
-      delete cobj;
-    }
+#else
+  // finalize not created by ctor
+  auto iter2 = se::NativePtrToObjectMap::find(s.nativeThisObject());
+  if (iter2 != se::NativePtrToObjectMap::end())
+  {
+    CC_LOG_DEBUG("jsbindings: finalizing JS object(created by native) %p(%s)", s.nativeThisObject(), typeid(T).name());
+    T* cobj = reinterpret_cast<T*>(s.nativeThisObject());
+    delete cobj;
   }
+#endif
   return true;
 }
 
@@ -604,22 +632,22 @@ static bool jsb_yasio_obstream__ctor(se::State& s)
   const auto& args = s.args();
   size_t argc      = args.size();
 
-  yasio::obstream* cobj = nullptr;
-  if (argc == 0)
-  {
-    cobj = new yasio::obstream();
-  }
-  else
+  int capacity = 128;
+  if (argc >= 1)
   {
     auto arg0 = args[0];
     if (arg0.isNumber())
-      cobj = new yasio::obstream(arg0.toUint32());
-    else
-      cobj = new yasio::obstream();
+      capacity = arg0.toUint32();
   }
 
+  auto cobj = yasio_jsb_make_object(yasio::obstream, capacity);
+
+#if defined(YASIO_JSB_USE_SHARED_OBJECT)
+  s.thisObject()->setPrivateObject(cobj);
+#else
   s.thisObject()->setPrivateData(cobj);
   se::NonRefNativePtrCreatedByCtorMap::emplace(cobj);
+#endif
 
   return true;
 }
@@ -795,8 +823,12 @@ static bool js_yasio_obstream_write_dx(se::State& s)
   const auto& args = s.args();
   size_t argc      = args.size();
 
+#if defined(COCOS_MAJOR_VERSION) && COCOS_MAJOR_VERSION >= 3 && COCOS_MINJOR_VERSION >= 6
+  double argval = args[0].toDouble();
+#else
   double argval = 0;
   seval_to_double(args[0], &argval);
+#endif
   cobj->write<T>(static_cast<T>(argval));
 
   s.rval().setUndefined();
@@ -894,10 +926,8 @@ bool js_yasio_obstream_sub(se::State& s)
     {
       count = args[1].toInt32();
     }
-
     auto subobj = new yasio::obstream(cobj->sub(offset, count));
     native_ptr_to_seval<yasio::obstream>(subobj, &s.rval());
-
     return true;
   } while (false);
 
@@ -1003,11 +1033,11 @@ bool js_yasio_io_event_packet(se::State& s)
       case yasio_jsb::BUFFER_RAW:
         s.rval().setObject(se::HandleObject(se::Object::createArrayBufferObject(packet.data(), packet.size())));
         break;
-      case yasio_jsb::BUFFER_FAST:
-        native_ptr_to_seval<yasio::ibstream>(new yasio::ibstream(yasio::forward_packet((yasio::packet &&) packet)), &s.rval());
+      case yasio_jsb::BUFFER_FAST: // fast_ibstream also require export otherwise will assert fail
+        // native_ptr_to_seval<yasio::fast_ibstream>(new yasio::fast_ibstream(yasio::forward_packet((yasio::packet_t &&) packet)), &s.rval());
         break;
       default:
-        native_ptr_to_seval<yasio::ibstream>(new yasio::fast_ibstream(yasio::forward_packet((yasio::packet &&) packet)), &s.rval());
+        native_ptr_to_seval<yasio::ibstream>(new yasio::ibstream(yasio::forward_packet((yasio::packet_t &&) packet)), &s.rval());
     }
   }
   else
@@ -1083,7 +1113,11 @@ se::Class* __jsb_yasio_io_service_class  = nullptr;
 
 static bool jsb_yasio_io_service__ctor(se::State& s)
 {
+#if defined(YASIO_JSB_USE_SHARED_OBJECT)
+  se::PrivateObjectBase* cobj = nullptr;
+    #else
   io_service* cobj = nullptr;
+  #endif
   const auto& args = s.args();
   size_t argc      = args.size();
 
@@ -1096,23 +1130,28 @@ static bool jsb_yasio_io_service__ctor(se::State& s)
       {
         std::vector<inet::io_hostent> hostents;
         seval_to_std_vector_hostent(arg0, &hostents);
-        cobj = new io_service(!hostents.empty() ? &hostents.front() : nullptr, (std::max)((int)hostents.size(), 1));
+        cobj = yasio_jsb_make_object(io_service, !hostents.empty() ? &hostents.front() : nullptr, (std::max)((int)hostents.size(), 1));
       }
       else
       {
         inet::io_hostent ioh;
         seval_to_hostent(arg0, &ioh);
-        cobj = new io_service(&ioh, 1);
+        cobj = yasio_jsb_make_object(io_service, &ioh, 1);
       }
     }
     else if (arg0.isNumber())
-      cobj = new io_service(arg0.toInt32());
+      cobj = yasio_jsb_make_object(io_service, arg0.toInt32());
   }
   else
-    cobj = new io_service();
+    cobj = yasio_jsb_make_object(io_service);
 
+#if defined(YASIO_JSB_USE_SHARED_OBJECT)
+  s.thisObject()->setPrivateObject(cobj);
+#else
   s.thisObject()->setPrivateData(cobj);
   se::NonRefNativePtrCreatedByCtorMap::emplace(cobj);
+#endif
+
   return true;
 }
 
@@ -1499,10 +1538,14 @@ bool jsb_register_yasio(se::Object* obj)
 
   // ##-- yasio enums
   se::Value __jsvalIntVal;
-#define YASIO_SET_INT_PROP(name, value) \
+#define YASIO_EXPORT_ENUM(value) \
   __jsvalIntVal.setInt32(value);        \
-  yasio->setProperty(name, __jsvalIntVal)
-#define YASIO_EXPORT_ENUM(v) YASIO_SET_INT_PROP(#v, v)
+  yasio->setProperty(#value, __jsvalIntVal)
+
+#define YASIO_EXPORT_STR(value)  \
+  __jsvalIntVal.setString(value); \
+  yasio->setProperty(#value, __jsvalIntVal)
+
   YASIO_EXPORT_ENUM(YCK_TCP_CLIENT);
   YASIO_EXPORT_ENUM(YCK_TCP_SERVER);
   YASIO_EXPORT_ENUM(YCK_UDP_CLIENT);
@@ -1553,6 +1596,10 @@ bool jsb_register_yasio(se::Object* obj)
   YASIO_EXPORT_ENUM(SEEK_CUR);
   YASIO_EXPORT_ENUM(SEEK_SET);
   YASIO_EXPORT_ENUM(SEEK_END);
+
+  char version[32];
+  snprintf(version, sizeof(version), "%x.%x.%x", (YASIO_VERSION_NUM >> 16) & 0xff, (YASIO_VERSION_NUM >> 8) & 0xff, YASIO_VERSION_NUM & 0xff);
+  YASIO_EXPORT_STR(version);
 
   using namespace yasio_jsb;
   YASIO_EXPORT_ENUM(BUFFER_DEFAULT);

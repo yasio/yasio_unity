@@ -5,7 +5,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2023 HALX99
+Copyright (c) 2012-2024 HALX99
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@ SOFTWARE.
 #ifndef YASIO__OBJECT_POOL_HPP
 #define YASIO__OBJECT_POOL_HPP
 
+#include "yasio/type_traits.hpp"
 #include "yasio/impl/object_pool.hpp"
 
 namespace yasio
@@ -39,7 +40,7 @@ struct null_mutex {
 template <typename _Ty, typename _Mutex = ::yasio::null_mutex>
 class object_pool : public detail::object_pool {
 public:
-  object_pool(size_t _ElemCount = 128) : detail::object_pool(detail::aligned_storage_size<_Ty>::value, _ElemCount) {}
+  object_pool(size_t _ElemCount = 128) : detail::object_pool(::yasio::aligned_storage_size<_Ty>::value, _ElemCount) {}
 
   template <typename... _Types>
   _Ty* create(_Types&&... args)
@@ -50,7 +51,7 @@ public:
   void destroy(void* _Ptr)
   {
     ((_Ty*)_Ptr)->~_Ty(); // call the destructor
-    release(_Ptr);
+    deallocate(_Ptr);
   }
 
   void* allocate()

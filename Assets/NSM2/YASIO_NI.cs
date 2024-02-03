@@ -1,16 +1,32 @@
-//
-// Copyright (c) Bytedance Inc 2021-2022. All right reserved.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-//
+//////////////////////////////////////////////////////////////////////////////////////////
+// A multi-platform support c++11 library with focus on asynchronous socket I/O for any
+// client application.
+//////////////////////////////////////////////////////////////////////////////////////////
+/*
+The MIT License (MIT)
 
-/* Match with yasio-4.0.x+ */
+Copyright (c) 2012-2024 HALX99
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+/* Match with yasio-5.0.x+ */
 using System;
 using System.Runtime.InteropServices;
 
@@ -23,21 +39,28 @@ namespace NSM2
 #else
         public const string LIBNAME = "yasio";
 #endif
-        // match with yasio/binding/yasio_ni.cpp: struct yasio_event_data
+        // match with yasio/binding/yasio_ni.cpp: struct yasio_io_event
         [StructLayout(LayoutKind.Sequential)]
-        public unsafe struct EventData
+        public unsafe struct IOEvent
         {
             public int kind;
-            public int status;
             public int channel;
-            public IntPtr session; // transport
-            public IntPtr packet;
-            public IntPtr user; // the user data
+            public IntPtr thandle;
 
-            public static readonly int cbSize = sizeof(EventData);
+            [StructLayout(LayoutKind.Explicit)]
+            public unsafe struct EventData
+            {
+                [FieldOffset(0)] public IntPtr msg;
+                [FieldOffset(0)] public int error;
+            }
+
+            public EventData data;
+            public void* user;
+
+            public static readonly int cbSize = sizeof(IOEvent);
         }
 
-        public delegate void YNIEventDelegate(ref EventData eventData);
+        public delegate void YNIEventDelegate(ref IOEvent eventData);
         public delegate int YNIResolvDelegate(string host, IntPtr sbuf);
         public delegate void YNIPrintDelegate(int level, string msg);
 

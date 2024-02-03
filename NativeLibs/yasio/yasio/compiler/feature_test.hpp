@@ -5,7 +5,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2023 HALX99
+Copyright (c) 2012-2024 HALX99
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -48,12 +48,10 @@ SOFTWARE.
 #if !defined(_MSC_VER) || _MSC_VER >= 1900
 #  define YASIO__HAS_CXX11 1
 #  define YASIO__NS_INLINE inline
-#  define YASIO__CONSTEXPR constexpr
 #  define YASIO__NOEXCEPT noexcept
 #else
 #  define YASIO__HAS_CXX11 0
 #  define YASIO__NS_INLINE
-#  define YASIO__CONSTEXPR const
 #  define YASIO__NOEXCEPT throw()
 #endif
 
@@ -76,6 +74,12 @@ SOFTWARE.
 #endif   // C++17 features check
 #if !defined(YASIO__HAS_CXX17)
 #  define YASIO__HAS_CXX17 0
+#endif
+
+#if YASIO__HAS_CXX17
+#  define YASIO__CONSTEXPR constexpr
+#else
+#  define YASIO__CONSTEXPR
 #endif
 
 // Tests whether compiler has c++20 support
@@ -170,6 +174,12 @@ SOFTWARE.
 #  define YASIO__HAS_NTOP 1
 #else
 #  define YASIO__HAS_NTOP 0
+#endif
+
+#if defined(_WIN32) && (!defined(WINAPI_FAMILY) || (WINAPI_FAMILY != WINAPI_FAMILY_APP)) && !defined(__MINGW64__) && !defined(__MINGW32__)
+#  define YASIO__HAS_WIN32_TIMEAPI 1
+#else
+#  define YASIO__HAS_WIN32_TIMEAPI 0
 #endif
 
 // 64bits Sense Macros

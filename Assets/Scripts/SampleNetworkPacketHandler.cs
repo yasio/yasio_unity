@@ -1,15 +1,30 @@
-//
-// Copyright (c) Bytedance Inc 2021. All right reserved.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-//
-using ByteDance.NAPI;
+//////////////////////////////////////////////////////////////////////////////////////////
+// A multi-platform support c++11 library with focus on asynchronous socket I/O for any
+// client application.
+//////////////////////////////////////////////////////////////////////////////////////////
+/*
+The MIT License (MIT)
+
+Copyright (c) 2012-2024 HALX99
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
 using System;
 using System.IO;
 using System.Net;
@@ -49,15 +64,18 @@ namespace NSM2
             return PROTO_HEADER_SIZE;
         }
 
-        unsafe public void EncodePDU(int cmd, NativeDataView ud, IntPtr ob)
+        unsafe public void EncodePDU(int cmd, Span<byte> ud, IntPtr ob)
         {
             YASIO_NI.yasio_ob_write_short(ob, (short)cmd);
-            YASIO_NI.yasio_ob_write_int(ob, ud.len); // packet size
+            YASIO_NI.yasio_ob_write_int(ob, ud.Length); // packet size
             YASIO_NI.yasio_ob_write_int(ob, VERIFIED_MAGIC_NUM);  // magic number
-            YASIO_NI.yasio_ob_write_bytes(ob, ud.ptr, ud.len); // ud
+            fixed (void* bytes = ud)
+            {
+                YASIO_NI.yasio_ob_write_bytes(ob, (IntPtr)bytes, ud.Length); // ud
+            }
         }
 
-        unsafe public (int, NativeDataView, Stream) DecodePDU(IntPtr bytes, int len)
+        unsafe public (int, Stream) DecodePDU(IntPtr bytes, int len, out Span<byte> msg)
         {
             Stream dataStream = new UnmanagedMemoryStream((byte*)bytes, len);
             try
@@ -77,15 +95,13 @@ namespace NSM2
                         if (DUMP_RECV_HEX)
                         {
                             int bodyLen = len - PROTO_HEADER_SIZE; // the udLen===bodyLen
-                            string wholeHexs = YASIO_NI.DumpHex(bytes, len);
-                            UnityEngine.Debug.LogFormat("cmd={0}, udLen/bodyLen={1}/{2}, wholeHexs: {3}\n", cmd, udLen, bodyLen, wholeHexs);
-                            string bodyHexs = YASIO_NI.DumpHex(bytes + PROTO_HEADER_SIZE, bodyLen);
-                            UnityEngine.Debug.LogFormat("cmd={0}, bodyHexs: {1}\n", cmd, bodyHexs);
+                            UnityEngine.Debug.LogFormat("cmd={0}, udLen/bodyLen={1}/{2}, msg: {3}\n", cmd, udLen, bodyLen, YASIO_NI.DumpHex(bytes, len));
+                            UnityEngine.Debug.LogFormat("cmd={0}, payload: {1}\n", cmd, YASIO_NI.DumpHex(bytes + PROTO_HEADER_SIZE, bodyLen));
                         }
 #endif
-                        NativeDataView ud = new NativeDataView { ptr = bytes + PROTO_HEADER_SIZE, len = len - PROTO_HEADER_SIZE };
+                        msg = new Span<byte>((bytes + PROTO_HEADER_SIZE).ToPointer(), len - PROTO_HEADER_SIZE);
 
-                        return (cmd, ud, dataStream);
+                        return (cmd, dataStream);
                     }
                     else
                     {
@@ -98,7 +114,8 @@ namespace NSM2
                 dataStream?.Dispose();
             }
 
-            return (-1, NativeDataView.NullValue, null);
+            msg = Span<byte>.Empty;
+            return (-1, null);
         }
 
         /// <summary>
@@ -108,7 +125,7 @@ namespace NSM2
         /// <param name="cmd"></param>
         /// <param name="ud"></param>
         /// <param name="channel"></param>
-        public void HandleEvent(NetworkEvent ev, int cmd, NativeDataView ud, int channel)
+        public void HandleEvent(NetworkEvent ev, int cmd, Span<byte> ud, int channel)
         {
             UnityEngine.Debug.LogFormat("SampleNetworkPacketHandler.HandleEvent, event={0}, cmd={1}, channel={2}", ev, cmd, channel);
             if(cmd == AppProtocol.CMD_LOGIN_REQ)
@@ -121,9 +138,8 @@ namespace NSM2
                 var reply = new AppProtocol.LoginResp();
                 reply.uid = msg.uid;
                 reply.status = 200; // 200 表示success
-                (NativeDataView udReply, Stream hold) = reply.encode();
+                Span<byte> udReply = reply.encode();
                 NetworkServiceManager.Instance.SendSerializedMsg(AppProtocol.CMD_LOGIN_RESP, udReply, AppProtocol.SERVER_CHANNEL);
-                hold.Dispose();
             }
             else if(cmd == AppProtocol.CMD_LOGIN_RESP)
             { // SampelScene应该是 channel:0 收到

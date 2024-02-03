@@ -5,7 +5,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2023 HALX99
+Copyright (c) 2012-2024 HALX99
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@ SOFTWARE.
 #include <assert.h>
 #include <string.h>
 #include <stdint.h>
+#include <sys/types.h>
 
 #ifdef _WIN32
 #  if !defined(WIN32_LEAN_AND_MEAN)

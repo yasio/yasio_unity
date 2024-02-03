@@ -5,7 +5,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2023 HALX99
+Copyright (c) 2012-2024 HALX99
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -94,6 +94,11 @@ SOFTWARE.
 // #define YASIO_NT_COMPAT_GAI 1
 
 /*
+** Uncomment or add compiler flag -DYASIO_NT_XHRES_TIMER to forcing use undocumented NT API to setup high-resolution timer
+*/
+// #define YASIO_NT_XHRES_TIMER 1
+
+/*
 ** Uncomment or add compiler flag -DYASIO_MINIFY_EVENT to minfy size of io_event
 */
 // #define YASIO_MINIFY_EVENT 1
@@ -134,9 +139,14 @@ SOFTWARE.
 */
 // #define YASIO_ENABLE_HPERF_IO 1
 
-#if defined(_WIN32) && defined(YASIO_ENABLE_HPERF_IO)
-#  undef YASIO__HAS_EPOLL
-#  define YASIO__HAS_EPOLL 1
+#if defined(_WIN32)
+#  if defined(YASIO_ENABLE_HPERF_IO)
+#    undef YASIO__HAS_EPOLL
+#    define YASIO__HAS_EPOLL 1
+#  endif
+#  if YASIO__HAS_WIN32_TIMEAPI && !defined(YASIO_NT_XHRES_TIMER)
+#    define YASIO__USE_TIMEAPI 1
+#  endif
 #endif
 
 #if defined(YASIO_HEADER_ONLY)
@@ -195,7 +205,7 @@ SOFTWARE.
 /*
 **  The yasio version macros
 */
-#define YASIO_VERSION_NUM 0x040100
+#define YASIO_VERSION_NUM 0x050000
 
 /*
 ** The macros used by io_service.
@@ -205,9 +215,6 @@ SOFTWARE.
 
 // The default ttl of multicast
 #define YASIO_DEFAULT_MULTICAST_TTL (int)128
-
-// The max internet buffer size
-#define YASIO_INET_BUFFER_SIZE 65536
 
 // The max pdu buffer length, avoid large memory allocation when application decode a huge length.
 #define YASIO_MAX_PDU_BUFFER_SIZE static_cast<int>(1 * 1024 * 1024)

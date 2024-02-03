@@ -3,16 +3,16 @@
 // client application.
 //////////////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (c) 2012-2023 HALX99 (halx99 at live dot com)
+// Copyright (c) 2012-2024 HALX99 (halx99 at live dot com)
 #ifndef YASIO__EVPORT_IO_WATCHER_HPP
 #define YASIO__EVPORT_IO_WATCHER_HPP
-#include <vector>
 #include <chrono>
 #include <map>
 
 #include <port.h>
+
+#include "yasio/pod_vector.hpp"
 #include "yasio/impl/socket.hpp"
-#include "yasio/impl/pod_vector.hpp"
 #include "yasio/impl/select_interrupter.hpp"
 
 /*
