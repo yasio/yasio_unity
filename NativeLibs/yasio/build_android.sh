@@ -21,9 +21,7 @@ function build() {
     cmake -H. -B${BUILD_PATH} -DANDROID_ABI=${ABI} -DYASIO_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=ON -DYASIO_NO_DEPS=ON -DYASIO_ENABLE_NI=ON -DYASIO_ENABLE_KCP=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${NDK}/build/cmake/android.toolchain.cmake -DANDROID_NATIVE_API_LEVEL=${API} -DANDROID_TOOLCHAIN=clang -DANDROID_TOOLCHAIN_NAME=${TOOLCHAIN_ANME}
     cmake --build ${BUILD_PATH} --config Release
     mkdir -p plugin_android/Plugins/Android/libs/${ABI}/
-    cp ${BUILD_PATH}/stripped/libyasio.so plugin_android/Plugins/Android/libs/${ABI}/libyasio.so
-    mkdir -p plugin_android/Plugins/Android/normal/${ABI}/
-    cp ${BUILD_PATH}/libyasio.so plugin_android/Plugins/Android/normal/${ABI}/libyasio.so
+    cp ${BUILD_PATH}/libyasio.so plugin_android/Plugins/Android/libs/${ABI}/libyasio.so
 }
 
 build android-16 armeabi-v7a arm-linux-androideabi-4.9
