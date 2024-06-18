@@ -76,8 +76,10 @@ struct yasio_kcp_options {
     auto __msg           = ::yasio::strfmt(127, "[yasio][%lld]" format "\n", ::yasio::clock<system_clock_t>(), ##__VA_ARGS__); \
     if (__cprint)                                                                                                              \
       __cprint(level, __msg.c_str());                                                                                          \
-    else                                                                                                                       \
+    else {                                                                                                                     \
+      __msg.back() = '\0';                                                                                                    \
       YASIO_LOG_TAG("", "%s", __msg.c_str());                                                                                  \
+    }                                                                                                                          \
   } while (false)
 // clang-format on
 
@@ -2258,7 +2260,7 @@ void io_service::set_option_internal(int opt, va_list ap) // lgtm [cpp/poorly-do
         channel->uparams_.no_bswap = va_arg(ap, int);
       break;
     }
-    case YOPT_C_LFBFD_FN: {
+    case YOPT_C_UNPACK_FN: {
       auto channel = channel_at(static_cast<size_t>(va_arg(ap, int)));
       if (channel)
         channel->decode_len_ = *va_arg(ap, decode_len_fn_t*);
