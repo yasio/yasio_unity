@@ -14,7 +14,7 @@ jobs:
       - name: Install NDK
         run: |
           cd ~
-          wget -O NDK -q https://dl.google.com/android/repository/android-ndk-r23c-linux-x86_64.zip
+          wget -O NDK -q https://dl.google.com/android/repository/android-ndk-r19c-linux-x86_64.zip
           sudo apt install unzip -y
           unzip -q NDK
           ANDROID_NDK=$(pwd)/android-ndk-r19c
