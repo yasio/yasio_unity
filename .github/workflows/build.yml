@@ -10,11 +10,11 @@ jobs:
   android:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install NDK
         run: |
           cd ~
-          wget -O NDK -q https://dl.google.com/android/repository/android-ndk-r19c-linux-x86_64.zip
+          wget -O NDK -q https://dl.google.com/android/repository/android-ndk-r23c-linux-x86_64.zip
           sudo apt install unzip -y
           unzip -q NDK
           ANDROID_NDK=$(pwd)/android-ndk-r19c
@@ -26,33 +26,33 @@ jobs:
           ./build_android.sh
           ./build_android_arm64.sh
       - name: Upload
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: ./NativeLibs/yasio/plugin_android/**/*
           name: plugin_android
   linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build
         run: |
           cd NativeLibs/yasio
           ./build_linux.sh
       - name: Upload
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: ./NativeLibs/yasio/plugin_linux/**/*
           name: plugin_linux
   ios:
     runs-on: macos-latest
-
     steps:
+      - uses: actions/checkout@v4
       - name: Build
         run: |
           cd NativeLibs/yasio
           ./build_ios.sh
       - name: Upload
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: ./NativeLibs/yasio/plugin_ios/**/*
           name: plugin_ios
@@ -61,13 +61,13 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Build
         run: |
           cd NativeLibs/yasio
           ./build_osx.sh
       - name: Upload
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: ./NativeLibs/yasio/plugin_osx/**/*
           name: plugin_osx
@@ -76,10 +76,10 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Insatll MSVC
-        uses: microsoft/setup-msbuild@v1.3
+        uses: microsoft/setup-msbuild@v2
       
       - name: Build
         run: |
@@ -87,7 +87,7 @@ jobs:
           .\build_win.bat
           .\build_uwp.bat
       - name: Upload
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: ./NativeLibs/yasio/plugin_win/**/*
           name: plugin_win
@@ -96,6 +96,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download a Build Artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
       - name: Display structure of downloaded files
         run: ls -R
