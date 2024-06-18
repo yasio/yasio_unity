@@ -47,10 +47,6 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: '13.4'
       - name: Build
         run: |
           cd NativeLibs/yasio
