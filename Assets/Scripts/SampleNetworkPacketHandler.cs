@@ -139,7 +139,7 @@ namespace NSM2
                 reply.uid = msg.uid;
                 reply.status = 200; // 200 表示success
                 Span<byte> udReply = reply.encode();
-                NetworkServiceManager.Instance.SendSerializedMsg(AppProtocol.CMD_LOGIN_RESP, udReply, AppProtocol.SERVER_CHANNEL);
+                NetworkManager.Instance.SendSerializedMsg(AppProtocol.CMD_LOGIN_RESP, udReply, AppProtocol.SERVER_CHANNEL);
             }
             else if(cmd == AppProtocol.CMD_LOGIN_RESP)
             { // SampelScene应该是 channel:0 收到

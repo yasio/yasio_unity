@@ -56,7 +56,7 @@ namespace NSM2
     }
 
 
-    public class NetworkServiceManager : Singleton<NetworkServiceManager>
+    public class NetworkManager : Singleton<NetworkManager>
     {
         IntPtr _service = IntPtr.Zero;
         IntPtr[] _sessions = new IntPtr[1];
@@ -327,7 +327,7 @@ namespace NSM2
         [MonoPInvokeCallback(typeof(YASIO_NI.YNIEventDelegate))]
         static void HandleNativeNetworkIoEvent(ref YASIO_NI.IOEvent ev)
         {
-            var nsm = NetworkServiceManager.Instance;
+            var nsm = NetworkManager.Instance;
             Debug.LogFormat("The channel connect_id={0}, bytes_transferred={1}", YASIO_NI.yasio_connect_id(nsm._service, ev.channel),
                 YASIO_NI.yasio_bytes_transferred(nsm._service, ev.channel));
             switch ((YASIO_NI.YEnums)ev.kind)

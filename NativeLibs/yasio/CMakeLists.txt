@@ -21,7 +21,7 @@ project(${yasio_target_name})
 set(_1kfetch_cache_dir "${CMAKE_CURRENT_LIST_DIR}/cache" CACHE STRING "" FORCE)
 set(_1kfetch_manifest "${CMAKE_CURRENT_LIST_DIR}/manifest.json" CACHE STRING "" FORCE)
 
-include(1k/platform.cmake)
+include(1k/platforms.cmake)
 include(1k/fetch.cmake)
 include(CMakeDependentOption)
 
@@ -38,7 +38,11 @@ option(YASIO_ENABLE_LUA "Build yasio with lua support" OFF)
 option(YASIO_ENABLE_AXLUA "Build yasio with axmol-lua support" OFF)
 option(YASIO_ENABLE_NI "Build yasio with native interface for interop" OFF)
 option(YASIO_ENABLE_KCP "Enable kcp support" OFF)
-option(YASIO_NO_DEPS "Build yasio without deps" OFF)
+if (NOT OHOS)
+    option(YASIO_NO_DEPS "Build yasio without deps" OFF)
+else()
+    set(YASIO_NO_DEPS ON) # disable 3rd deps for ohos
+endif()
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
@@ -122,7 +126,7 @@ endif()
 if (NOT DEFINED YASIO_SSL_BACKEND)
     if (CMAKE_SYSTEM_NAME MATCHES "Emscripten")
         set(YASIO_SSL_BACKEND 0)
-    elseif(CMAKE_SYSTEM_NAME STREQUAL "watchOS")
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "watchOS" OR (MSVC_VERSION AND MSVC_VERSION LESS 1900))
         set(YASIO_SSL_BACKEND 2) # mbedtls
     else()
         set(YASIO_SSL_BACKEND 1) # openssl
@@ -142,11 +146,14 @@ endif()
 
 set (YASIO_USE_PREBUILT_LUA FALSE)
 
-if (ANDROID)
-    if (NOT THIRDPART_LIB)
-        set(THIRDPART_LIB "-llog")
-    else()
-        set(THIRDPART_LIB "${THIRDPART_LIB} -llog")
+if(WIN32)
+    set(YASIO_EXTERN_LIBS "ws2_32")
+else()
+    set(YASIO_EXTERN_LIBS "m")
+    if (ANDROID)
+        list(APPEND YASIO_EXTERN_LIBS "log")
+    elseif(OHOS)
+        list(APPEND YASIO_EXTERN_LIBS "hilog_ndk.z")
     endif()
 endif()
 
@@ -176,20 +183,25 @@ elseif(YASIO_SSL_BACKEND EQUAL 2) # mbedtls
     message(STATUS "Build with mbedtls support")
     set(ENABLE_PROGRAMS OFF CACHE BOOL "Build mbedtls programs" FORCE)
     set(ENABLE_TESTING OFF CACHE BOOL "Build mbed TLS tests." FORCE)
-    set(MBEDTLS_VER "3.4.1")
-    if(MSVC_VERSION LESS 1900)
-        message(AUTHOR_WARNING "Using mbedtls 2.28.3 for vs2013 happy")
-        set(MBEDTLS_VER "2.28.3")
+    if(MSVC_VERSION AND (MSVC_VERSION LESS 1900))
+        set(MBEDTLS_VER "2.28.7")
+        message(AUTHOR_WARNING "Using mbedtls ${MBEDTLS_VER} for vs2013 happy")
+    else()
+        set(MBEDTLS_VER "3.6.0")
     endif()
-    include(1k/CPM.cmake)
-    CPMAddPackage(
-      NAME mbedtls
-      VERSION ${MBEDTLS_VER}
-      GITHUB_REPOSITORY "Mbed-TLS/mbedtls"
-      GIT_TAG "v${MBEDTLS_VER}"
-      OPTIONS
-        "MBEDTLS_FATAL_WARNINGS OFF"
-    )
+    if (PWSH_COMMAND)
+        _1kadd_pkg("gh:Mbed-TLS/mbedtls#v${MBEDTLS_VER}" OPTIONS "MBEDTLS_FATAL_WARNINGS OFF")
+    else()
+        include(1k/CPM.cmake)
+        CPMAddPackage(
+            NAME mbedtls
+            VERSION ${MBEDTLS_VER}
+            GITHUB_REPOSITORY "Mbed-TLS/mbedtls"
+            GIT_TAG "v${MBEDTLS_VER}"
+            OPTIONS
+                "MBEDTLS_FATAL_WARNINGS OFF"
+        )
+    endif()
     yasio_config_target_outdir(mbedtls)
     yasio_config_target_outdir(mbedcrypto)
     yasio_config_target_outdir(mbedx509)
@@ -201,44 +213,33 @@ if (YASIO_USE_CARES)
 endif()
 
 ### The yasio core library project
-file(GLOB YASIO_CORE yasio/*.hpp;yasio/*.cpp;yasio/compiler/*.hpp;yasio/impl/*.hpp;)
+file(GLOB YASIO_SOURCES yasio/*.hpp;yasio/*.cpp;yasio/compiler/*.hpp;yasio/impl/*.hpp)
 
 if (YASIO_ENABLE_KCP)
   if (NOT kcp_SOURCE_DIR)
-      set(YASIO_CORE ${YASIO_CORE} 
-        ${PROJECT_SOURCE_DIR}/3rdparty/kcp/ikcp.c
-      )
+      list(APPEND YASIO_SOURCES ${PROJECT_SOURCE_DIR}/3rdparty/kcp/ikcp.c)
       list(APPEND YASIO_INC_DIRS  "${PROJECT_SOURCE_DIR}/3rdparty/kcp")
   else()
-      list(APPEND THIRDPART_LIB "kcp")
+      list(APPEND YASIO_EXTERN_LIBS "kcp")
   endif()
 endif()
 if (YASIO_ENABLE_NI)
-  set(YASIO_CORE ${YASIO_CORE} 
-    yasio/bindings/yasio_ni.cpp
-  )
+    list(APPEND YASIO_SOURCES yasio/bindings/yasio_ni.cpp)
 endif()
 
 if (YASIO_ENABLE_LUA)
-  set(YASIO_CORE ${YASIO_CORE} 
-    yasio/bindings/lyasio.cpp
-  )
-  
-  if(YASIO_ENABLE_AXLUA)
-      set(YASIO_CORE ${YASIO_CORE} 
-        yasio/bindings/yasio_axlua.cpp
-      )
-  endif()
+    list(APPEND YASIO_SOURCES yasio/bindings/lyasio.cpp)
+    if(YASIO_ENABLE_AXLUA)
+      list(APPEND YASIO_SOURCES yasio/bindings/yasio_axlua.cpp)
+    endif()
 endif()
 
 if(ANDROID AND CARES_INCLUDE_DIR)
-  set(YASIO_CORE ${YASIO_CORE} 
-    yasio/platform/yasio_jni.cpp
-  )
+    list(APPEND YASIO_SOURCES yasio/platform/yasio_jni.cpp)
 endif()
 
 if(WIN32 AND YASIO_ENABLE_HPERF_IO)
-  set(THIRDPART_SRC 3rdparty/wepoll/wepoll.c)
+    list(APPEND YASIO_SOURCES 3rdparty/wepoll/wepoll.c)
 endif()
 
 if(YASIO_ENABLE_KCP)
@@ -262,55 +263,30 @@ macro(source_group_by_dir proj_dir source_files)
     endif(MSVC OR APPLE)
 endmacro(source_group_by_dir)
 
-source_group_by_dir(${CMAKE_CURRENT_SOURCE_DIR} YASIO_CORE)
+source_group_by_dir(${CMAKE_CURRENT_SOURCE_DIR} YASIO_SOURCES)
 
 # --- add yasio core lib project
 if (APPLE)
     if (IOS)
         # set(CMAKE_OSX_ARCHITECTURES "$(ARCHS_STANDARD)")
-        add_library(${yasio_target_name} STATIC
-           ${YASIO_CORE}
-           ${THIRDPART_SRC}
-        )
+        add_library(${yasio_target_name} STATIC ${YASIO_SOURCES})
     else ()
         # set(CMAKE_OSX_ARCHITECTURES "$(ARCHS_STANDARD_64_BIT)")
         if (BUILD_SHARED_LIBS)
-            add_library(${yasio_target_name} MODULE
-                ${YASIO_CORE}
-                ${THIRDPART_SRC}
-            )
+            add_library(${yasio_target_name} MODULE ${YASIO_SOURCES})
             set_target_properties (${yasio_target_name} PROPERTIES BUNDLE TRUE )
         else()
-            add_library(${yasio_target_name} STATIC
-                ${YASIO_CORE}
-                ${THIRDPART_SRC}
-            )
+            add_library(${yasio_target_name} STATIC ${YASIO_SOURCES})
         endif()
     endif ()
 elseif ("${CMAKE_SYSTEM_NAME}" STREQUAL "Switch")
-    add_library(${yasio_target_name} STATIC
-        ${YASIO_CORE}
-        ${THIRDPART_SRC}
-    )
+    add_library(${yasio_target_name} STATIC ${YASIO_SOURCES})
     target_compile_options(${yasio_target_name} PRIVATE -m64 -mcpu=cortex-a57+fp+simd+crypto+crc -fno-common -fno-short-enums -ffunction-sections -fdata-sections -fPIC -fms-extensions)
 else ( ) # linux/win32/android
-    add_library(${yasio_target_name}
-        ${YASIO_CORE}
-        ${THIRDPART_SRC}
-    )
+    add_library(${yasio_target_name} ${YASIO_SOURCES})
 endif ( )
 
-if ( WIN32 )
-    target_link_libraries(${yasio_target_name}
-        ws2_32
-        ${THIRDPART_LIB} 
-    )
-else ( )
-    target_link_libraries(${yasio_target_name}
-        m
-        ${THIRDPART_LIB} 
-    )
-endif ( )
+target_link_libraries(${yasio_target_name} ${YASIO_EXTERN_LIBS})
 
 message(STATUS "YASIO_INC_DIRS=${YASIO_INC_DIRS}")
 target_include_directories(${yasio_target_name} PUBLIC ${YASIO_INC_DIRS})
@@ -402,13 +378,6 @@ if(CARES_INCLUDE_DIR AND YASIO_USE_CARES)
    target_link_libraries(${yasio_target_name} c-ares)
 endif()
 
-if (BUILD_SHARED_LIBS AND ANDROID)
-    message(STATUS "CMAKE_STRIP=${CMAKE_STRIP}")
-    add_custom_command(TARGET ${yasio_target_name} POST_BUILD
-        COMMAND mkdir -p ${PROJECT_BINARY_DIR}/stripped && ${CMAKE_STRIP} ${PROJECT_BINARY_DIR}/libyasio.so -o ${PROJECT_BINARY_DIR}/stripped/libyasio.so
-    )
-endif()
-
 # lua
 if(YASIO_ENABLE_LUA)
     find_package(Lua "5.1.0")
@@ -428,7 +397,7 @@ if(YASIO_ENABLE_LUA)
     endif()
 endif()
 
-# link libraries for yasio_core when BUILD_SHARED_LIBS=TRUE
+# link libraries for yasio_SOURCES when BUILD_SHARED_LIBS=TRUE
 yasio_link_ssl_libraries(${yasio_target_name})
 if(BUILD_SHARED_LIBS)
     if(NOT WIN32 AND (NOT ANDROID))

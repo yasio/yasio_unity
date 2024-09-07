@@ -31,13 +31,13 @@ using System;
 
 public class SampleScene : MonoBehaviour, NetworkEventListener
 {
-    NetworkServiceManager nsm;
+    NetworkManager nsm;
 	
     // Start is called before the first frame update
     void Start()
     {
         Debug.Log("Start Game!");
-        nsm = NetworkServiceManager.Instance;
+        nsm = NetworkManager.Instance;
         nsm.Start(AppProtocol.MAX_CHANNELS, new SampleNetworkPacketHandler());
         nsm.ListenAt("127.0.0.1", AppProtocol.PORT, AppProtocol.SERVER_CHANNEL); // 启动本地TCP服务
         nsm.AddEventListener(this);
